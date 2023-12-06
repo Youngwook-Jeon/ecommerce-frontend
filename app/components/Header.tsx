@@ -8,6 +8,7 @@ import Container from "./Container";
 import Logo from "./Logo";
 import Image from "next/image";
 import Link from "next/link";
+import AuthenticationInfo from "./AuthenticationInfo";
 
 export default function Header() {
   return (
@@ -26,18 +27,10 @@ export default function Header() {
             className="placeholder:text-sm flex-1 outline-none"
           />
         </div>
+
         {/* Login/Register */}
-        {/* {!session && (
-          <div onClick={() => signIn()} className="headerDiv">
-            <AiOutlineUser className="text-2xl" />
-            <p className="text-sm font-semibold">Login/Register</p>
-          </div>
-        )} */}
-        <Link href="/session">Session (dev only!)</Link>
-        <div onClick={() => {}} className="headerDiv">
-          <AiOutlineUser className="text-2xl" />
-          <p className="text-sm font-semibold">Login/Register</p>
-        </div>
+        <AuthenticationInfo />
+        
         {/* Cart button */}
         <div
           className="bg-black hover:bg-slate-950 rounded-full text-slate-100 hover:text-white 
