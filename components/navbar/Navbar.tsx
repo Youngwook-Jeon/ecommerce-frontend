@@ -6,9 +6,10 @@ import TriggerButton from "./TriggerButton";
 import AuthInfoLinks from "./AuthInfoLinks";
 import { getAuthUserInfo } from "@/services/authService";
 import { getTokenFromCookie, XSRF_COOKIE_NAME } from "@/services/fetchWrapper";
+import DarkMode from "./DarkMode";
 
 export default async function Navbar() {
-  const csrfToken = getTokenFromCookie(XSRF_COOKIE_NAME)
+  const csrfToken = getTokenFromCookie(XSRF_COOKIE_NAME);
   const authUserInfo = await getAuthUserInfo();
   console.log(authUserInfo);
 
@@ -18,6 +19,7 @@ export default async function Navbar() {
         <Logo />
         <NavSearch />
         <div className="flex gap-4 items-center">
+          <DarkMode />
           <CartButton />
           <AuthInfoLinks csrfToken={csrfToken} authUserInfo={authUserInfo}>
             <TriggerButton />

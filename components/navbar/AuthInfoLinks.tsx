@@ -1,7 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { LogOut } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -11,9 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { links } from "@/lib/links";
-import Link from "next/link";
-import { LogOut } from "lucide-react";
 import { AuthUserInfoVm } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AuthInfoLinks({
   children,
@@ -25,6 +25,8 @@ export default function AuthInfoLinks({
   authUserInfo: AuthUserInfoVm;
 }) {
   const [isLogouting, setIsLogouting] = useState(false);
+  const { toast } = useToast();
+
   const handleLogout = async () => {
     setIsLogouting(true);
     try {
@@ -39,11 +41,31 @@ export default function AuthInfoLinks({
         console.log(response);
         throw new Error("Logout failed");
       }
-      // TODO: toast success message
+
       const location = response.headers.get("Location");
-      if (location) window.location.href = location;
+      if (location) {
+        toast({
+          description: "You are successfully logged out.",
+          duration: 2000,
+        });
+
+        // Delaying the toast
+        await new Promise((resolve) => {
+          const minDisplayTime = 1500;
+          setTimeout(() => {
+            resolve(true);
+          }, minDisplayTime);
+        });
+
+        window.location.href = location;
+      }
     } catch (error) {
-      // TODO: toast error message
+      console.log(error);
+      toast({
+        variant: "destructive",
+        title: "Logout failed",
+        description: "There was a problem to log out.",
+      });
     }
     setIsLogouting(false);
   };

@@ -12,6 +12,7 @@ type NavLink = {
     { href: "/cart", label: "cart" },
     { href: "/orders", label: "orders" },
     { href: "/admin/sales", label: "dashboard" },
+    { href: "/profile", label: "profile" },
   ];
   
   export const adminLinks: NavLink[] = [
