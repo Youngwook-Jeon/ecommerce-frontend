@@ -1,5 +1,5 @@
 import CartButton from "./CartButton";
-import Logo from "./Logo";
+import Logo from "../../../../../common/ui/components/Logo";
 import NavSearch from "./NavSearch";
 import TriggerButton from "./TriggerButton";
 import AuthInfoLinks from "./AuthInfoLinks";

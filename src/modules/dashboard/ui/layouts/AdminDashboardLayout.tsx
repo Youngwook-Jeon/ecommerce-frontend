@@ -1,6 +1,8 @@
+import { redirect } from "next/navigation";
+
 import { ADMIN } from "@/common/constants";
 import { getAuthUserInfo } from "@/common/services/authService";
-import { redirect } from "next/navigation";
+import { DashboardSidebar } from "../components/sidebar/DashboardSidebar";
 
 interface AdminDashboardLayoutProps {
   children: React.ReactNode;
@@ -18,12 +20,20 @@ export const AdminDashboardLayout = async ({
     ) {
       redirect("/");
     }
-    console.log("[AdminDashboardLayout]: ", authUserInfo)
+    console.log("[AdminDashboardLayout]: ", authUserInfo);
   } catch (error) {
     console.error("Error fetching auth user info:", error);
 
     redirect("/");
   }
 
-  return <div>{children}</div>;
+  return (
+    <div className="w-full h-full">
+      <DashboardSidebar isAdmin />
+      <div>
+        {/* <DashboardNavbar /> */}
+        <div>{children}</div>
+      </div>
+    </div>
+  );
 };
