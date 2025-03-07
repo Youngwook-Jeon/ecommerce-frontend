@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use server";
 
-import { AuthUserInfoVm } from "@/lib/types";
+import { AuthUserInfoSchema, AuthUserInfoVm } from "../schemas/auth";
 import { fetchWrapper } from "./fetchWrapper";
 
 async function loggedFetch(url: string, method: string, options?: RequestInit) {
@@ -37,22 +37,21 @@ async function loggedFetch(url: string, method: string, options?: RequestInit) {
 }
 
 export async function getAuthUserInfo(): Promise<AuthUserInfoVm> {
-  let authUserInfo: AuthUserInfoVm = {
-    isAuthenticated: false,
-    username: "",
-  };
-  try {
-    const response = await fetchWrapper.get("authentication", {
-      cache: "no-store",
-    });
-    console.log("Response:", response);
+  const response = await fetchWrapper.get("authentication", {
+    cache: "no-store",
+  });
 
-    if (!response.ok) throw new Error("Error to fetch auth user info");
-
-    authUserInfo = await response.json();
-  } catch (error) {
-    console.log("Fetch auth user info error:", error);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch auth user info: ${response.statusText}`);
   }
 
-  return authUserInfo;
+  const data = await response.json();
+
+  const parsed = AuthUserInfoSchema.safeParse(data);
+  if (!parsed.success) {
+    console.error("Validation errors:", parsed.error);
+    throw new Error("Invalid data format for AuthUserInfoVm");
+  }
+
+  return parsed.data;
 }

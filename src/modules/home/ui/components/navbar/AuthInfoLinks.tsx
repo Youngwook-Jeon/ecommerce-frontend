@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { links } from "@/lib/links";
-import { AuthUserInfoVm } from "@/lib/types";
+import { AuthUserInfoVm } from "@/common/types/auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AuthInfoLinks({

@@ -4,8 +4,8 @@ import NavSearch from "./NavSearch";
 import TriggerButton from "./TriggerButton";
 import AuthInfoLinks from "./AuthInfoLinks";
 import Container from "@/components/global/Container";
-import { getAuthUserInfo } from "@/services/authService";
-import { getAllCookies, XSRF_COOKIE_NAME } from "@/services/fetchWrapper";
+import { getAuthUserInfo } from "@/common/services/authService";
+import { getAllCookies, XSRF_COOKIE_NAME } from "@/common/services/fetchWrapper";
 import DarkMode from "./DarkMode";
 // import { adminTest, authTest } from "@/services/productService";
 

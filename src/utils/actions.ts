@@ -1,6 +1,6 @@
 "use server";
 
-import { fetchWrapper } from "@/services/fetchWrapper";
+import { fetchWrapper } from "@/common/services/fetchWrapper";
 
 interface ProductRequest {
   productName: string;

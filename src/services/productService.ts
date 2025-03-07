@@ -1,6 +1,6 @@
 "use server";
 
-import { fetchWrapper } from "./fetchWrapper";
+import { fetchWrapper } from "../common/services/fetchWrapper";
 
 export async function authTest() {
     const response = await fetchWrapper.get("api/v1/products/auth-test");
