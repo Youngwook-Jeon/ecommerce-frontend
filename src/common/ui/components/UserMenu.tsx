@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { ChevronDownIcon, LogOut } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -11,19 +11,23 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { links } from "@/lib/links";
-import { AuthUserInfoVm } from "@/common/types/auth";
-import { useToast } from "@/hooks/use-toast";
 
-export default function AuthInfoLinks({
-  children,
-  csrfToken,
-  authUserInfo,
-}: {
-  children: React.ReactNode;
-  csrfToken: string;
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { AuthUserInfoVm } from "@/common/schemas/auth";
+import { links } from "@/common/constants/links";
+
+interface UserMenuProps {
   authUserInfo: AuthUserInfoVm;
-}) {
+  isFromDashboard?: boolean;
+  isSeller?: boolean;
+}
+
+export const UserMenu = ({
+  authUserInfo,
+  isFromDashboard,
+  isSeller,
+}: UserMenuProps) => {
   const [isLogouting, setIsLogouting] = useState(false);
   const { toast } = useToast();
 
@@ -33,7 +37,7 @@ export default function AuthInfoLinks({
       const response = await fetch("/logout", {
         method: "POST",
         headers: {
-          "X-XSRF-TOKEN": csrfToken,
+          // "X-XSRF-TOKEN": csrfToken,
         },
         credentials: "include",
       });
@@ -72,7 +76,11 @@ export default function AuthInfoLinks({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="flex gap-4 max-w-[100px]">
+          <ChevronDownIcon className="w-6 h-6" />
+        </Button>
+      </DropdownMenuTrigger>
       <DropdownMenuContent className="w-40" align="start" sideOffset={10}>
         {authUserInfo.isAuthenticated ? (
           <>
@@ -85,20 +93,31 @@ export default function AuthInfoLinks({
                 </DropdownMenuItem>
               );
             })}
+            {!isFromDashboard && isSeller && (
+              <DropdownMenuItem>
+                <Link href="/dashboard/admin" className="capitalize w-full">
+                  my dashboard
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              className="cursor-pointer"
+              onClick={() => handleLogout()}
+              disabled={isLogouting}
+            >
               <LogOut />
-              <button onClick={() => handleLogout()} disabled={isLogouting}>
-                Logout
-              </button>
+              Logout
             </DropdownMenuItem>
           </>
         ) : (
           <DropdownMenuItem>
-            <Link href="/oauth2/authorization/edge-service-keycloak">Login</Link>
+            <Link href="/oauth2/authorization/edge-service-keycloak">
+              Login
+            </Link>
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+};

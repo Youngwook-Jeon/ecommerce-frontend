@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 
-export default function ModeToggle() {
+export default function DarkMode() {
   const { setTheme } = useTheme();
 
   return (

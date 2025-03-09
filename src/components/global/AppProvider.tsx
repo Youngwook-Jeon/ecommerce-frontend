@@ -1,9 +1,9 @@
 "use client";
 
 import { Toaster } from "@/components/ui/toaster";
-import ThemeProvider from "./ThemeProvider";
+import ThemeProvider from "@/components/global/ThemeProvider";
 
-export default function HomeProviders({
+export default function AppProvider({
   children,
 }: {
   children: React.ReactNode;

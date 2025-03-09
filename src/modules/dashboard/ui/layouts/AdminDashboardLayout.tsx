@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { ADMIN } from "@/common/constants";
 import { getAuthUserInfo } from "@/common/services/authService";
 import { DashboardSidebar } from "../components/sidebar/DashboardSidebar";
+import { DashboardHeader } from "../components/header/DashboardHeader";
+import { AuthUserInfoVm } from "@/common/schemas/auth";
 
 interface AdminDashboardLayoutProps {
   children: React.ReactNode;
@@ -11,8 +13,9 @@ interface AdminDashboardLayoutProps {
 export const AdminDashboardLayout = async ({
   children,
 }: AdminDashboardLayoutProps) => {
+  let authUserInfo: AuthUserInfoVm | undefined;
   try {
-    const authUserInfo = await getAuthUserInfo();
+    authUserInfo = await getAuthUserInfo();
     if (
       !authUserInfo ||
       !authUserInfo.isAuthenticated ||
@@ -30,9 +33,9 @@ export const AdminDashboardLayout = async ({
   return (
     <div className="w-full h-full">
       <DashboardSidebar isAdmin />
-      <div>
-        {/* <DashboardNavbar /> */}
-        <div>{children}</div>
+      <div className="ml-[300px]">
+        <DashboardHeader authUserInfo={authUserInfo} />
+        <div className="w-full mt-[75px] p-4">{children}</div>
       </div>
     </div>
   );

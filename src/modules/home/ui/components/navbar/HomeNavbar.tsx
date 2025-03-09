@@ -1,31 +1,19 @@
 import CartButton from "./CartButton";
-import Logo from "../../../../../common/ui/components/Logo";
+import Logo from "@/common/ui/components/Logo";
 import NavSearch from "./NavSearch";
-import TriggerButton from "./TriggerButton";
-import AuthInfoLinks from "./AuthInfoLinks";
 import Container from "@/components/global/Container";
 import { getAuthUserInfo } from "@/common/services/authService";
-import { getAllCookies, XSRF_COOKIE_NAME } from "@/common/services/fetchWrapper";
-import DarkMode from "./DarkMode";
-// import { adminTest, authTest } from "@/services/productService";
+import DarkMode from "@/common/ui/components/DarkMode";
+import { UserMenu } from "@/common/ui/components/UserMenu";
+import { AuthUserInfoVm } from "@/common/schemas/auth";
 
 export default async function HomeNavbar() {
-  const csrfToken = (await getAllCookies())[XSRF_COOKIE_NAME] || "";
-  // const authTestRes = await authTest();
+  let authUserInfo: AuthUserInfoVm | undefined;
   try {
-    // const res = await refreshToken();
-    // console.log(res);
-    // const adminTestRes = await adminTest();
-    // console.log(adminTestRes);
+    authUserInfo = await getAuthUserInfo();
   } catch (error) {
-    // await refreshToken();
-    console.log(error);
+    console.error("Error fetching auth user info:", error);
   }
-  const authUserInfo = await getAuthUserInfo();
-  await getAuthUserInfo();
-  // console.log(authTestRes);
-  // console.log(adminTestRes);
-  console.log(authUserInfo);
 
   return (
     <nav className="border-b">
@@ -35,9 +23,13 @@ export default async function HomeNavbar() {
         <div className="flex gap-4 items-center">
           <DarkMode />
           <CartButton />
-          <AuthInfoLinks csrfToken={csrfToken} authUserInfo={authUserInfo}>
-            <TriggerButton />
-          </AuthInfoLinks>
+          {authUserInfo && (
+            <UserMenu
+              authUserInfo={authUserInfo}
+              isFromDashboard={false}
+              isSeller
+            />
+          )}
         </div>
       </Container>
     </nav>
