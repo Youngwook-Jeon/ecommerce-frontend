@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { AuthUserInfoVm } from "@/common/schemas/auth";
 import { links } from "@/common/constants/links";
+import { ADMIN } from "@/common/constants";
 
 interface UserMenuProps {
   authUserInfo: AuthUserInfoVm;
@@ -26,6 +27,7 @@ interface UserMenuProps {
 export const UserMenu = ({
   authUserInfo,
   isFromDashboard,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   isSeller,
 }: UserMenuProps) => {
   const [isLogouting, setIsLogouting] = useState(false);
@@ -93,7 +95,7 @@ export const UserMenu = ({
                 </DropdownMenuItem>
               );
             })}
-            {!isFromDashboard && isSeller && (
+            {!isFromDashboard && authUserInfo.roles.includes(ADMIN) && (
               <DropdownMenuItem>
                 <Link href="/dashboard/admin" className="capitalize w-full">
                   my dashboard

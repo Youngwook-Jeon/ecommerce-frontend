@@ -1,4 +1,4 @@
-import { AdminDashboardLayout } from "@/modules/dashboard/ui/layouts/AdminDashboardLayout";
+import {AdminDashboardLayout} from "@/modules/dashboard/ui/layouts/AdminDashboardLayout";
 
 interface LayoutProps {
   children: React.ReactNode;
