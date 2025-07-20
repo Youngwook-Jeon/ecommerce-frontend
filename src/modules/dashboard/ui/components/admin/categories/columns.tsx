@@ -2,17 +2,21 @@
 
 import { ColumnDef } from "@tanstack/react-table";
 
-import { CategoryDtoVm } from "@/common/schemas/category";
 import { CategoryActions } from "./CategoryActions";
 import { Badge } from "@/components/ui/badge";
+import {CategoryWithDepth} from "@/modules/dashboard/ui/components/admin/categories/CategoryClientPage";
 
-export const columns: ColumnDef<CategoryDtoVm>[] = [
+export const columns: ColumnDef<CategoryWithDepth>[] = [
+  {
+    accessorKey: "id",
+    header: "Id",
+  },
   {
     accessorKey: "name",
     header: "Name",
     cell: ({ row }) => {
       // Use depth property to add indentation for hierarchy
-      const depth = row.depth;
+      const depth = row.original.depth;
       const name = row.getValue("name") as string;
 
       return <div style={{ paddingLeft: `${depth * 1.5}rem` }}>{name}</div>;

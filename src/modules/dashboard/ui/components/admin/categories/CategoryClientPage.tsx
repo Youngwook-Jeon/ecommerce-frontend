@@ -13,7 +13,7 @@ interface CategoriesClientPageProps {
 }
 
 // A helper type to add 'depth' to our DTO for rendering
-type CategoryWithDepth = CategoryDtoVm & { depth: number };
+export type CategoryWithDepth = CategoryDtoVm & { depth: number };
 
 export function CategoriesClientPage({ initialData }: CategoriesClientPageProps) {
 
