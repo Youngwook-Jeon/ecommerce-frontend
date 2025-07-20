@@ -1,12 +1,13 @@
 "use client"
 
 import { PlusCircle } from "lucide-react";
-import { useMemo } from "react";
+import {useMemo, useState} from "react";
 
 import { CategoryDtoVm } from "@/common/schemas/category";
 import { columns } from "./columns";
 import { CategoryDataTable } from "./CategoryDataTable";
 import { Button } from "@/components/ui/button";
+import {CreateCategoryForm} from "@/modules/dashboard/ui/components/admin/categories/CreateCategoryForm";
 
 interface CategoriesClientPageProps {
     initialData: CategoryDtoVm[];
@@ -16,6 +17,7 @@ interface CategoriesClientPageProps {
 export type CategoryWithDepth = CategoryDtoVm & { depth: number };
 
 export function CategoriesClientPage({ initialData }: CategoriesClientPageProps) {
+    const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
 
     // A recursive function to flatten the hierarchy into a list for the table
     const flattenHierarchy = (categories: CategoryDtoVm[], depth = 0): CategoryWithDepth[] => {
@@ -32,20 +34,20 @@ export function CategoriesClientPage({ initialData }: CategoriesClientPageProps)
     // useMemo to prevent re-calculating the flattened list on every render
     const flattenedData = useMemo(() => flattenHierarchy(initialData), [initialData]);
 
-    const handleCreate = () => {
-        console.log("Open create category dialog");
-        // TODO: Open create dialog/modal
-    }
-
     return (
         <div className="space-y-4">
             <div className="flex justify-end">
-                <Button onClick={handleCreate}>
+                <Button onClick={() => setIsCreateFormOpen(true)}>
                     <PlusCircle className="mr-2 h-4 w-4"/>
                     Create New Category
                 </Button>
             </div>
             <CategoryDataTable columns={columns} data={flattenedData} />
+
+            <CreateCategoryForm
+                isOpen={isCreateFormOpen}
+                onClose={() => setIsCreateFormOpen(false)}
+            />
         </div>
     )
 }

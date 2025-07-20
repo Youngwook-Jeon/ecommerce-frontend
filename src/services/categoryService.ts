@@ -1,5 +1,8 @@
+"use server";
+
 import { fetchWrapper } from "@/common/services/fetchWrapper";
-import { CategorySchema, type CategoryDtoVm } from "@/common/schemas/category";
+import {CategorySchema, type CategoryDtoVm, CreateCategoryForm} from "@/common/schemas/category";
+import {getErrorMessage} from "@/lib/utils";
 
 /**
  * Fetches the category hierarchy from the backend and validates the response.
@@ -10,7 +13,6 @@ export async function getCategoryHierarchy(): Promise<CategoryDtoVm[]> {
   try {
     const response = await fetchWrapper.get(
       "api/v1/product_service/queries/categories/admin/hierarchy"
-      //   "api/v1/product_service/queries/categories/hierarchy"
     );
 
     if (!response.ok) {
@@ -35,8 +37,10 @@ export async function getCategoryHierarchy(): Promise<CategoryDtoVm[]> {
         parsed.error
       );
       throw new Error(
-        "Invalid data format for category hierarchy received from API."
+          "Invalid data format for category hierarchy received from API: " +
+          JSON.stringify(parsed.error.issues)
       );
+
     }
 
     return parsed.data;
@@ -46,5 +50,28 @@ export async function getCategoryHierarchy(): Promise<CategoryDtoVm[]> {
       error
     );
     return [];
+  }
+}
+
+/**
+ * Creates a new category.
+ * @param data The data for the new category, conforming to CreateCategoryForm.
+ * @returns A promise that resolves to the response from the server.
+ */
+export async function createCategory(data: CreateCategoryForm)
+{
+  try {
+    const response = await fetchWrapper.post("api/v1/product_service/categories", data);
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to create category.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in createCategory Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
   }
 }
