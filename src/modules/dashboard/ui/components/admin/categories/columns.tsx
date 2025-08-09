@@ -5,8 +5,14 @@ import { ColumnDef } from "@tanstack/react-table";
 import { CategoryActions } from "./CategoryActions";
 import { Badge } from "@/components/ui/badge";
 import {CategoryWithDepth} from "@/modules/dashboard/ui/components/admin/categories/CategoryClientPage";
+import { CategoryDtoVm } from "@/common/schemas/category";
 
-export const columns: ColumnDef<CategoryWithDepth>[] = [
+type ColumnsConfig = {
+  onEdit: (category: CategoryDtoVm) => void;
+  onDelete: (category: CategoryDtoVm) => void;
+}
+
+export const columns = ({ onEdit, onDelete }: ColumnsConfig): ColumnDef<CategoryWithDepth>[] => [
   {
     accessorKey: "id",
     header: "Id",
@@ -42,9 +48,9 @@ export const columns: ColumnDef<CategoryWithDepth>[] = [
       const category = row.original;
 
       return (
-        <div className="text-right">
-          <CategoryActions categoryId={category.id} />
-        </div>
+          <div className="text-right">
+            <CategoryActions category={category} onEdit={onEdit} onDelete={onDelete} />
+          </div>
       );
     },
   },

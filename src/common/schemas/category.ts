@@ -28,3 +28,12 @@ export const CreateCategorySchema = z.object({
 });
 
 export type CreateCategoryForm = z.infer<typeof CreateCategorySchema>;
+
+export const UpdateCategorySchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters.").max(50, "Name must be 50 characters or less."),
+  parentId: z.number().positive("Parent ID must be a positive number.").optional().nullable(),
+  status: z.string(),
+});
+
+export type UpdateCategoryForm = z.infer<typeof UpdateCategorySchema>;
+

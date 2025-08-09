@@ -1,7 +1,9 @@
 "use server";
 
+import {revalidatePath} from "next/cache";
+
 import { fetchWrapper } from "@/common/services/fetchWrapper";
-import {CategorySchema, type CategoryDtoVm, CreateCategoryForm} from "@/common/schemas/category";
+import {CategorySchema, type CategoryDtoVm, CreateCategoryForm, UpdateCategorySchema} from "@/common/schemas/category";
 import {getErrorMessage} from "@/lib/utils";
 
 /**
@@ -72,6 +74,47 @@ export async function createCategory(data: CreateCategoryForm)
     return { success: true, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in createCategory Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+/**
+ * Updates an existing category.
+ */
+export async function updateCategory(id: number, data: CreateCategoryForm) {
+  try {
+    const validatedData = UpdateCategorySchema.parse(data);
+    const response = await fetchWrapper.put(`api/v1/product_service/categories/${id}`, validatedData);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to update category.");
+    }
+
+    revalidatePath("/dashboard/admin/categories");
+    return { success: true, data: await response.json() };
+  } catch (error: unknown) {
+    console.error("An error occurred in updateCategory Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+/**
+ * Deletes a category.
+ */
+export async function deleteCategory(id: number) {
+  try {
+    const response = await fetchWrapper.del(`api/v1/product_service/categories/${id}`);
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to delete category.");
+    }
+
+    revalidatePath("/dashboard/admin/categories");
+    return { success: true, data: await response.json() };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteCategory Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
   }
 }
