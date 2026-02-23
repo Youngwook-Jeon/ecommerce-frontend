@@ -28,10 +28,11 @@ export async function getCategoryHierarchy(): Promise<CategoryDtoVm[]> {
     console.log("Category hierarchy response:", response);
 
     const data = await response.json();
+    console.log("Category hierarchy data:", data);
 
     // Validate the data against the Zod schema
     // We expect an array of categories, so we use .array()
-    const parsed = CategorySchema.array().safeParse(data);
+    const parsed = CategorySchema.array().safeParse(data.categories);
 
     if (!parsed.success) {
       console.error(
