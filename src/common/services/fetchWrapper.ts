@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
 export const BASE_API_URL = "http://localhost:9000/";
 export const XSRF_COOKIE_NAME = "XSRF-TOKEN";
@@ -53,17 +54,18 @@ async function request(
     requestOptions.body = JSON.stringify(body);
   }
 
+  let response: Response;
   try {
-    const response = await fetch(BASE_API_URL + url, requestOptions);
-    if (response.type == "cors" && response.redirected) {
-      window.location.href = response.url;
-    }
-
-    return response;
+    response = await fetch(BASE_API_URL + url, requestOptions);
   } catch (error) {
     console.error("fetch request error: ", error);
     throw error;
   }
+  if (response.redirected) {
+    redirect(response.url);
+  }
+
+  return response;
 }
 
 export const fetchWrapper = {
