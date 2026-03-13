@@ -12,21 +12,23 @@ import {
 import { ProductsClientPage } from "@/modules/dashboard/ui/components/admin/products/ProductsClientPage";
 
 interface AdminProductsPageProps {
-  searchParams?: {
+  searchParams: Promise<{
     page?: string;
     size?: string;
     keyword?: string;
     sort?: string;
-  };
+  }>;
 }
 
 export default async function AdminProductsPage({
   searchParams,
 }: AdminProductsPageProps) {
-  const pageParam = searchParams?.page ?? "1";
-  const sizeParam = searchParams?.size ?? "20";
-  const keywordParam = searchParams?.keyword;
-  const sortParam = searchParams?.sort ?? "createdAt,desc";
+  const resolvedSearchParams = await searchParams;
+
+  const pageParam = resolvedSearchParams.page ?? "1";
+  const sizeParam = resolvedSearchParams.size ?? "20";
+  const keywordParam = resolvedSearchParams.keyword;
+  const sortParam = resolvedSearchParams.sort ?? "createdAt,desc";
 
   const urlPage = Number(pageParam);
   const currentPage = Number.isNaN(urlPage) ? 0 : Math.max(0, urlPage - 1);

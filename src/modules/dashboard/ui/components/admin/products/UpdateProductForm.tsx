@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +27,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { createProduct, CreateProductRequest } from "@/services/productService";
 import {
   Select,
   SelectContent,
@@ -36,8 +34,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AdminProductDtoVm,
+  UpdateProductRequest,
+  updateProduct,
+} from "@/services/productService";
 
-const CreateProductSchema = z.object({
+const UpdateProductSchema = z.object({
   name: z
     .string()
     .min(2, "Name must be at least 2 characters.")
@@ -45,67 +48,86 @@ const CreateProductSchema = z.object({
   description: z
     .string()
     .min(20, "Description must be at least 20 characters."),
-  basePrice: z
-    .coerce
+  basePrice: z.coerce
     .number()
     .positive("Base price must be greater than zero."),
   brand: z
     .string()
     .min(2, "Brand must be at least 2 characters.")
     .max(100, "Brand must be 100 characters or less."),
-  categoryId: z
-    .coerce
+  categoryId: z.coerce
     .number()
     .int("Category ID must be an integer.")
     .positive("Category ID must be a positive number."),
-  conditionType: z.enum(["NEW", "USED", "REFURBISHED", "OPEN_BOX"]),
   status: z.enum(["ACTIVE", "INACTIVE", "DISCONTINUED", "OUT_OF_STOCK"]),
 });
 
-type CreateProductFormValues = z.infer<typeof CreateProductSchema>;
+type UpdateProductFormValues = z.infer<typeof UpdateProductSchema>;
 
-interface CreateProductFormProps {
+interface UpdateProductFormProps {
+  product: AdminProductDtoVm | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
+export function UpdateProductForm({
+  product,
+  isOpen,
+  onClose,
+}: UpdateProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
-  const form = useForm<CreateProductFormValues>({
-    resolver: zodResolver(CreateProductSchema),
+  const form = useForm<UpdateProductFormValues>({
+    resolver: zodResolver(UpdateProductSchema),
     defaultValues: {
       name: "",
       description: "",
       basePrice: 0,
       brand: "",
       categoryId: 1,
-      conditionType: "NEW",
       status: "ACTIVE",
     },
   });
 
-  async function onSubmit(values: CreateProductFormValues) {
+  useEffect(() => {
+    if (product) {
+      const anyProduct = product as any;
+      const status =
+        (product.status as UpdateProductFormValues["status"]) ?? "ACTIVE";
+
+      form.reset({
+        name: product.name,
+        description: anyProduct.description ?? "",
+        basePrice: product.basePrice,
+        brand: product.brand,
+        categoryId: product.categoryId ?? 1,
+        status,
+      });
+    }
+  }, [product, form]);
+
+  async function onSubmit(values: UpdateProductFormValues) {
+    if (!product) return;
+
     setIsSubmitting(true);
 
-    const payload: CreateProductRequest = {
+    const payload: UpdateProductRequest = {
       name: values.name,
       description: values.description,
       basePrice: values.basePrice,
       brand: values.brand,
       categoryId: values.categoryId,
-      conditionType: values.conditionType,
       status: values.status,
     };
 
-    const result = await createProduct(payload);
+    const result = await updateProduct(product.id, payload);
 
     if (result.success) {
       toast({
         title: "Success!",
-        description: `Product "${values.name}" has been created.`,
+        description: `Product "${values.name}" has been updated.`,
       });
       onClose();
       router.refresh();
@@ -124,11 +146,8 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Create New Product</DialogTitle>
-          <DialogDescription>
-            Create a new product. The main image URL will be set to a default
-            placeholder for now.
-          </DialogDescription>
+          <DialogTitle>Edit Product</DialogTitle>
+          <DialogDescription>Update the product details.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -139,10 +158,7 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="e.g., Wireless Bluetooth Earbuds"
-                      {...field}
-                    />
+                    <Input placeholder="e.g., Wireless Bluetooth Earbuds" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -223,32 +239,16 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
             />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="conditionType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Condition</FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select condition" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="NEW">NEW</SelectItem>
-                          <SelectItem value="USED">USED</SelectItem>
-                          <SelectItem value="REFURBISHED">REFURBISHED</SelectItem>
-                          <SelectItem value="OPEN_BOX">OPEN_BOX</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>Condition (read-only)</FormLabel>
+                <FormControl>
+                  <Input
+                    value={product?.conditionType ?? ""}
+                    disabled
+                    readOnly
+                  />
+                </FormControl>
+              </FormItem>
 
               <FormField
                 control={form.control}
@@ -290,7 +290,7 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
                 </Button>
               </DialogClose>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Product"}
+                {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
           </form>

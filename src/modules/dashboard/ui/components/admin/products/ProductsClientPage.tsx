@@ -10,6 +10,8 @@ import { ProductDataTable } from "./ProductDataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CreateProductForm } from "./CreateProductForm";
+import { UpdateProductForm } from "./UpdateProductForm";
+import { DeleteProductDialog } from "./DeleteProductDialog";
 
 interface ProductsClientPageProps {
   initialPage: AdminProductPageVm;
@@ -22,6 +24,9 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
 
   const [search, setSearch] = useState<string>(searchParams.get("keyword") ?? "");
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
+  const [isUpdateFormOpen, setIsUpdateFormOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<AdminProductDtoVm | null>(null);
 
   const products: AdminProductDtoVm[] = initialPage.content;
 
@@ -29,12 +34,12 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
     () =>
       columns({
         onEdit: (product) => {
-          // TODO: Open edit drawer/modal
-          console.log("Edit product clicked:", product);
+          setSelectedProduct(product);
+          setIsUpdateFormOpen(true);
         },
         onDelete: (product) => {
-          // TODO: Open delete confirmation dialog
-          console.log("Delete product clicked:", product);
+          setSelectedProduct(product);
+          setIsDeleteDialogOpen(true);
         },
       }),
     []
@@ -127,6 +132,24 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
       <CreateProductForm
         isOpen={isCreateFormOpen}
         onClose={() => setIsCreateFormOpen(false)}
+      />
+
+      <UpdateProductForm
+        isOpen={isUpdateFormOpen}
+        onClose={() => {
+          setIsUpdateFormOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+      />
+
+      <DeleteProductDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
       />
     </div>
   );

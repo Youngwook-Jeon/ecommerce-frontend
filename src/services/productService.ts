@@ -82,7 +82,7 @@ export async function getAdminProducts(
   }
 }
 
-// ----- 어드민용 제품 생성 API -----
+// ----- 어드민용 제품 CUD API -----
 
 export interface CreateProductRequest {
   name: string;
@@ -91,29 +91,22 @@ export interface CreateProductRequest {
   brand: string;
   categoryId: number;
   conditionType: string;
-  productStatus: string;
+  status: string;
+}
+
+export interface UpdateProductRequest {
+  name: string;
+  description: string;
+  basePrice: number;
+  brand: string;
+  categoryId: number;
+  status: string;
 }
 
 export async function createProduct(data: CreateProductRequest) {
-  const {
-    name,
-    description,
-    basePrice,
-    brand,
-    categoryId,
-    conditionType,
-    productStatus,
-  } = data;
-
   const requestBody = {
-    name,
-    description,
-    basePrice,
-    brand,
+    ...data,
     mainImageUrl: "https://example.com/images/default-product.jpg",
-    categoryId,
-    conditionType,
-    productStatus,
   };
 
   try {
@@ -131,6 +124,52 @@ export async function createProduct(data: CreateProductRequest) {
     return { success: true, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in createProduct Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function updateProduct(
+  productId: string,
+  data: UpdateProductRequest
+) {
+  const requestBody = {
+    ...data,
+    mainImageUrl: "https://example.com/images/default-product.jpg",
+  };
+
+  try {
+    const response = await fetchWrapper.put(
+      `api/v1/product_service/products/${productId}`,
+      requestBody
+    );
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to update product.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in updateProduct Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function deleteProduct(productId: string) {
+  try {
+    const response = await fetchWrapper.del(
+      `api/v1/product_service/products/${productId}`
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || "Failed to delete product.");
+    }
+
+    return { success: true, data: await response.json() };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteProduct Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
   }
 }
