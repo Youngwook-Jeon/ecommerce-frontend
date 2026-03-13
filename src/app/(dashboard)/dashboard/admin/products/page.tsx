@@ -16,6 +16,7 @@ interface AdminProductsPageProps {
     page?: string;
     size?: string;
     keyword?: string;
+    sort?: string;
   };
 }
 
@@ -25,6 +26,7 @@ export default async function AdminProductsPage({
   const pageParam = searchParams?.page ?? "1";
   const sizeParam = searchParams?.size ?? "20";
   const keywordParam = searchParams?.keyword;
+  const sortParam = searchParams?.sort ?? "createdAt,desc";
 
   const urlPage = Number(pageParam);
   const currentPage = Number.isNaN(urlPage) ? 0 : Math.max(0, urlPage - 1);
@@ -33,6 +35,7 @@ export default async function AdminProductsPage({
   const page = await getAdminProducts({
     page: currentPage,
     size: pageSize,
+    sort: sortParam,
     includeOrphans: true,
     keyword: keywordParam,
   });

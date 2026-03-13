@@ -1,6 +1,7 @@
 "use server";
 
 import { fetchWrapper } from "../common/services/fetchWrapper";
+import { getErrorMessage } from "@/lib/utils";
 
 // ----- 어드민용 제품 조회 API -----
 export interface AdminProductDtoVm {
@@ -71,13 +72,66 @@ export async function getAdminProducts(
         `Error fetching admin products: ${response.status} ${response.statusText}`,
         errorBody
       );
-      return null; 
+      return null;
     }
 
     return (await response.json()) as AdminProductPageVm;
   } catch (error) {
     console.error("Exception in getAdminProducts: ", error);
     return null;
+  }
+}
+
+// ----- 어드민용 제품 생성 API -----
+
+export interface CreateProductRequest {
+  name: string;
+  description: string;
+  basePrice: number;
+  brand: string;
+  categoryId: number;
+  conditionType: string;
+  productStatus: string;
+}
+
+export async function createProduct(data: CreateProductRequest) {
+  const {
+    name,
+    description,
+    basePrice,
+    brand,
+    categoryId,
+    conditionType,
+    productStatus,
+  } = data;
+
+  const requestBody = {
+    name,
+    description,
+    basePrice,
+    brand,
+    mainImageUrl: "https://example.com/images/default-product.jpg",
+    categoryId,
+    conditionType,
+    productStatus,
+  };
+
+  try {
+    const response = await fetchWrapper.post(
+      "api/v1/product_service/products",
+      requestBody
+    );
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to create product.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in createProduct Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
   }
 }
 

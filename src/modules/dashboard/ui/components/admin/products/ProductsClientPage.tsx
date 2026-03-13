@@ -1,7 +1,6 @@
- "use client";
+"use client";
 
 import { PlusCircle } from "lucide-react";
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
@@ -10,6 +9,7 @@ import { columns } from "./columns";
 import { ProductDataTable } from "./ProductDataTable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CreateProductForm } from "./CreateProductForm";
 
 interface ProductsClientPageProps {
   initialPage: AdminProductPageVm;
@@ -21,6 +21,7 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
   const pathname = usePathname();
 
   const [search, setSearch] = useState<string>(searchParams.get("keyword") ?? "");
+  const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
 
   const products: AdminProductDtoVm[] = initialPage.content;
 
@@ -88,11 +89,9 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
         </form>
 
         <div className="flex justify-end">
-          <Button asChild>
-            <Link href="/admin/products/create">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create New Product
-            </Link>
+          <Button onClick={() => setIsCreateFormOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create New Product
           </Button>
         </div>
       </div>
@@ -124,6 +123,11 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
           </Button>
         </div>
       </div>
+
+      <CreateProductForm
+        isOpen={isCreateFormOpen}
+        onClose={() => setIsCreateFormOpen(false)}
+      />
     </div>
   );
 };
