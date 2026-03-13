@@ -11,11 +11,30 @@ import {
 } from "@/components/ui/breadcrumb";
 import { ProductsClientPage } from "@/modules/dashboard/ui/components/admin/products/ProductsClientPage";
 
-export default async function AdminProductsPage() {
+interface AdminProductsPageProps {
+  searchParams?: {
+    page?: string;
+    size?: string;
+    keyword?: string;
+  };
+}
+
+export default async function AdminProductsPage({
+  searchParams,
+}: AdminProductsPageProps) {
+  const pageParam = searchParams?.page ?? "1";
+  const sizeParam = searchParams?.size ?? "20";
+  const keywordParam = searchParams?.keyword;
+
+  const urlPage = Number(pageParam);
+  const currentPage = Number.isNaN(urlPage) ? 0 : Math.max(0, urlPage - 1);
+  const pageSize = Number.isNaN(Number(sizeParam)) ? 20 : Number(sizeParam);
+
   const page = await getAdminProducts({
-    page: 0,
-    size: 20,
+    page: currentPage,
+    size: pageSize,
     includeOrphans: true,
+    keyword: keywordParam,
   });
 
   return (
@@ -38,7 +57,7 @@ export default async function AdminProductsPage() {
       </header>
 
       {page ? (
-        <ProductsClientPage initialData={page.content} />
+        <ProductsClientPage initialPage={page} />
       ) : (
         <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive">
           Failed to load products. Please try again later.
