@@ -35,10 +35,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  AdminProductDtoVm,
   UpdateProductRequest,
   updateProduct,
 } from "@/services/productService";
+import { AdminProductDetailVm, fetchAdminProductDetail } from "@/services/adminProductClient";
 
 const UpdateProductSchema = z.object({
   name: z
@@ -59,23 +59,25 @@ const UpdateProductSchema = z.object({
     .number()
     .int("Category ID must be an integer.")
     .positive("Category ID must be a positive number."),
-  status: z.enum(["ACTIVE", "INACTIVE", "DISCONTINUED", "OUT_OF_STOCK"]),
+  status: z.enum(["ACTIVE", "INACTIVE", "DISCONTINUED", "OUT_OF_STOCK", "DELETED"]),
 });
 
 type UpdateProductFormValues = z.infer<typeof UpdateProductSchema>;
 
 interface UpdateProductFormProps {
-  product: AdminProductDtoVm | null;
+  productId: string | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function UpdateProductForm({
-  product,
+  productId,
   isOpen,
   onClose,
 }: UpdateProductFormProps) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [detail, setDetail] = useState<AdminProductDetailVm | null>(null);
+
   const router = useRouter();
   const { toast } = useToast();
 
@@ -91,27 +93,54 @@ export function UpdateProductForm({
     },
   });
 
-  useEffect(() => {
-    if (product) {
-      const anyProduct = product as any;
-      const status =
-        (product.status as UpdateProductFormValues["status"]) ?? "ACTIVE";
+  const { isSubmitting } = form.formState;
 
-      form.reset({
-        name: product.name,
-        description: anyProduct.description ?? "",
-        basePrice: product.basePrice,
-        brand: product.brand,
-        categoryId: product.categoryId ?? 1,
-        status,
-      });
+  useEffect(() => {
+    if (!isOpen || !productId) {
+      return;
     }
-  }, [product, form]);
+
+    let cancelled = false;
+    setIsLoadingDetail(true);
+
+    fetchAdminProductDetail(productId)
+      .then((data) => {
+        if (cancelled) return;
+        setDetail(data);
+
+        const status =
+          (data.status as UpdateProductFormValues["status"]) ?? "ACTIVE";
+
+        form.reset({
+          name: data.name,
+          description: data.description ?? "",
+          basePrice: data.basePrice,
+          brand: data.brand ?? "",
+          categoryId: data.categoryId ?? 1,
+          status,
+        });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to load product detail", error);
+        toast({
+          variant: "destructive",
+          title: "Failed to load product",
+          description: "Could not load product details for editing.",
+        });
+        onClose();
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingDetail(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, productId, form, toast, onClose]);
 
   async function onSubmit(values: UpdateProductFormValues) {
-    if (!product) return;
-
-    setIsSubmitting(true);
+    if (!productId) return;
 
     const payload: UpdateProductRequest = {
       name: values.name,
@@ -122,7 +151,7 @@ export function UpdateProductForm({
       status: values.status,
     };
 
-    const result = await updateProduct(product.id, payload);
+    const result = await updateProduct(productId, payload);
 
     if (result.success) {
       toast({
@@ -138,9 +167,9 @@ export function UpdateProductForm({
         description: result.message,
       });
     }
-
-    setIsSubmitting(false);
   }
+
+  const isDisabled = isLoadingDetail || isSubmitting;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -151,6 +180,11 @@ export function UpdateProductForm({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {isLoadingDetail && (
+              <p className="text-sm font-medium text-blue-600 animate-pulse">
+                Loading product details...
+              </p>
+            )}
             <FormField
               control={form.control}
               name="name"
@@ -158,7 +192,7 @@ export function UpdateProductForm({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Wireless Bluetooth Earbuds" {...field} />
+                    <Input placeholder="e.g., Wireless Bluetooth Earbuds" disabled={isDisabled} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -175,6 +209,7 @@ export function UpdateProductForm({
                     <Textarea
                       rows={4}
                       placeholder="Short description of the product"
+                      disabled={isDisabled}
                       {...field}
                     />
                   </FormControl>
@@ -196,6 +231,7 @@ export function UpdateProductForm({
                         step="0.01"
                         min="0.01"
                         placeholder="e.g., 79.99"
+                        disabled={isDisabled}
                         {...field}
                       />
                     </FormControl>
@@ -211,7 +247,7 @@ export function UpdateProductForm({
                   <FormItem>
                     <FormLabel>Brand</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., SoundMax" {...field} />
+                      <Input placeholder="e.g., SoundMax" disabled={isDisabled} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -230,6 +266,7 @@ export function UpdateProductForm({
                       type="number"
                       min="1"
                       placeholder="e.g., 1"
+                      disabled={isDisabled}
                       {...field}
                     />
                   </FormControl>
@@ -243,7 +280,7 @@ export function UpdateProductForm({
                 <FormLabel>Condition (read-only)</FormLabel>
                 <FormControl>
                   <Input
-                    value={product?.conditionType ?? ""}
+                    value={detail?.conditionType ?? ""}
                     disabled
                     readOnly
                   />
@@ -259,7 +296,8 @@ export function UpdateProductForm({
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
+                        disabled={isDisabled}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />
@@ -269,6 +307,7 @@ export function UpdateProductForm({
                           <SelectItem value="INACTIVE">INACTIVE</SelectItem>
                           <SelectItem value="DISCONTINUED">DISCONTINUED</SelectItem>
                           <SelectItem value="OUT_OF_STOCK">OUT_OF_STOCK</SelectItem>
+                          <SelectItem value="DELETED">DELETED</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
@@ -278,6 +317,38 @@ export function UpdateProductForm({
               />
             </div>
 
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormItem>
+                <FormLabel>Created At</FormLabel>
+                <FormControl>
+                  <Input
+                    value={
+                      detail?.createdAt
+                        ? new Date(detail.createdAt).toLocaleString()
+                        : ""
+                    }
+                    disabled
+                    readOnly
+                  />
+                </FormControl>
+              </FormItem>
+
+              <FormItem>
+                <FormLabel>Last Updated At</FormLabel>
+                <FormControl>
+                  <Input
+                    value={
+                      detail?.updatedAt
+                        ? new Date(detail.updatedAt).toLocaleString()
+                        : ""
+                    }
+                    disabled
+                    readOnly
+                  />
+                </FormControl>
+              </FormItem>
+            </div>
+
             <p className="text-xs text-muted-foreground">
               Main image URL will be set to{" "}
               <code>https://example.com/images/default-product.jpg</code>.
@@ -285,11 +356,11 @@ export function UpdateProductForm({
 
             <DialogFooter>
               <DialogClose asChild>
-                <Button type="button" variant="secondary">
+                <Button type="button" variant="secondary" disabled={isSubmitting}>
                   Cancel
                 </Button>
               </DialogClose>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isDisabled}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
@@ -299,4 +370,3 @@ export function UpdateProductForm({
     </Dialog>
   );
 }
-

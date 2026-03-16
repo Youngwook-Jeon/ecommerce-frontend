@@ -28,6 +28,8 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<AdminProductDtoVm | null>(null);
 
+  const selectedProductId = selectedProduct?.id ?? null;
+
   const products: AdminProductDtoVm[] = initialPage.content;
 
   const tableColumns = useMemo(
@@ -140,7 +142,7 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
           setIsUpdateFormOpen(false);
           setSelectedProduct(null);
         }}
-        product={selectedProduct}
+        productId={selectedProductId}
       />
 
       <DeleteProductDialog

@@ -232,7 +232,7 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select condition" />
@@ -259,7 +259,7 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
                     <FormControl>
                       <Select
                         onValueChange={field.onChange}
-                        defaultValue={field.value}
+                        value={field.value}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />
