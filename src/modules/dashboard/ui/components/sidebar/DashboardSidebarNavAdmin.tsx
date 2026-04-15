@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderPlusIcon, LayoutDashboardIcon, PackageIcon } from "lucide-react";
+import { FolderPlusIcon, LayoutDashboardIcon, ListTreeIcon, PackageIcon } from "lucide-react";
 
 import {
   Command,
@@ -29,6 +29,11 @@ const items = [
     title: "Products",
     url: "/dashboard/admin/products",
     icon: PackageIcon,
+  },
+  {
+    title: "Option Groups",
+    url: "/dashboard/admin/option-groups",
+    icon: ListTreeIcon,
   },
 ];
 
