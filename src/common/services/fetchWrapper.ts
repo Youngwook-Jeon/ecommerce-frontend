@@ -74,5 +74,7 @@ export const fetchWrapper = {
     request(url, "POST", body, options),
   put: (url: string, body = {}, options = {}) =>
     request(url, "PUT", body, options),
+  patch: (url: string, body = {}, options = {}) =>
+    request(url, "PATCH", body, options),
   del: (url: string, options = {}) => request(url, "DELETE", {}, options),
 };

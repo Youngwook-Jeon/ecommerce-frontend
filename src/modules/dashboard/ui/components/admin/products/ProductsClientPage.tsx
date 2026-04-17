@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { CreateProductForm } from "./CreateProductForm";
 import { UpdateProductForm } from "./UpdateProductForm";
 import { DeleteProductDialog } from "./DeleteProductDialog";
+import { UpdateProductStatusDialog } from "./UpdateProductStatusDialog";
 
 interface ProductsClientPageProps {
   initialPage: AdminProductPageVm;
@@ -25,6 +26,7 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
   const [search, setSearch] = useState<string>(searchParams.get("keyword") ?? "");
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [isUpdateFormOpen, setIsUpdateFormOpen] = useState(false);
+  const [isUpdateStatusOpen, setIsUpdateStatusOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<AdminProductDtoVm | null>(null);
 
@@ -42,6 +44,10 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
         onDelete: (product) => {
           setSelectedProduct(product);
           setIsDeleteDialogOpen(true);
+        },
+        onUpdateStatus: (product) => {
+          setSelectedProduct(product);
+          setIsUpdateStatusOpen(true);
         },
       }),
     []
@@ -149,6 +155,15 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
         isOpen={isDeleteDialogOpen}
         onClose={() => {
           setIsDeleteDialogOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+      />
+
+      <UpdateProductStatusDialog
+        isOpen={isUpdateStatusOpen}
+        onClose={() => {
+          setIsUpdateStatusOpen(false);
           setSelectedProduct(null);
         }}
         product={selectedProduct}

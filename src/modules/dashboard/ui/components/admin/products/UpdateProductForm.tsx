@@ -28,13 +28,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   UpdateProductRequest,
   updateProduct,
 } from "@/services/productService";
@@ -59,7 +52,6 @@ const UpdateProductSchema = z.object({
     .number()
     .int("Category ID must be an integer.")
     .positive("Category ID must be a positive number."),
-  status: z.enum(["ACTIVE", "INACTIVE", "DISCONTINUED", "OUT_OF_STOCK", "DELETED"]),
 });
 
 type UpdateProductFormValues = z.infer<typeof UpdateProductSchema>;
@@ -89,7 +81,6 @@ export function UpdateProductForm({
       basePrice: 0,
       brand: "",
       categoryId: 1,
-      status: "ACTIVE",
     },
   });
 
@@ -108,16 +99,12 @@ export function UpdateProductForm({
         if (cancelled) return;
         setDetail(data);
 
-        const status =
-          (data.status as UpdateProductFormValues["status"]) ?? "ACTIVE";
-
         form.reset({
           name: data.name,
           description: data.description ?? "",
           basePrice: data.basePrice,
           brand: data.brand ?? "",
           categoryId: data.categoryId ?? 1,
-          status,
         });
       })
       .catch((error) => {
@@ -148,7 +135,6 @@ export function UpdateProductForm({
       basePrice: values.basePrice,
       brand: values.brand,
       categoryId: values.categoryId,
-      status: values.status,
     };
 
     const result = await updateProduct(productId, payload);
@@ -286,35 +272,12 @@ export function UpdateProductForm({
                   />
                 </FormControl>
               </FormItem>
-
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <FormControl>
-                      <Select
-                        onValueChange={field.onChange}
-                        value={field.value}
-                        disabled={isDisabled}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                          <SelectItem value="INACTIVE">INACTIVE</SelectItem>
-                          <SelectItem value="DISCONTINUED">DISCONTINUED</SelectItem>
-                          <SelectItem value="OUT_OF_STOCK">OUT_OF_STOCK</SelectItem>
-                          <SelectItem value="DELETED">DELETED</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>Current Status (read-only)</FormLabel>
+                <FormControl>
+                  <Input value={detail?.status ?? ""} disabled readOnly />
+                </FormControl>
+              </FormItem>
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

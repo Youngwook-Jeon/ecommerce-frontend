@@ -100,6 +100,9 @@ export interface UpdateProductRequest {
   basePrice: number;
   brand: string;
   categoryId: number;
+}
+
+export interface UpdateProductStatusRequest {
   status: string;
 }
 
@@ -111,7 +114,7 @@ export async function createProduct(data: CreateProductRequest) {
 
   try {
     const response = await fetchWrapper.post(
-      "api/v1/product_service/products",
+      "api/v1/product_service/admin/products",
       requestBody
     );
 
@@ -139,7 +142,7 @@ export async function updateProduct(
 
   try {
     const response = await fetchWrapper.put(
-      `api/v1/product_service/products/${productId}`,
+      `api/v1/product_service/admin/products/${productId}`,
       requestBody
     );
 
@@ -156,10 +159,33 @@ export async function updateProduct(
   }
 }
 
+export async function updateProductStatus(
+  productId: string,
+  data: UpdateProductStatusRequest
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `api/v1/product_service/admin/products/${productId}/status`,
+      data
+    );
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to update product status.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in updateProductStatus Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
 export async function deleteProduct(productId: string) {
   try {
     const response = await fetchWrapper.del(
-      `api/v1/product_service/products/${productId}`
+      `api/v1/product_service/admin/products/${productId}`
     );
 
     if (!response.ok) {

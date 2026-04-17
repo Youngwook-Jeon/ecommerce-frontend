@@ -1,17 +1,27 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AdminProductDtoVm } from "@/services/productService";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type ColumnsConfig = {
   onEdit: (product: AdminProductDtoVm) => void;
+  onUpdateStatus: (product: AdminProductDtoVm) => void;
   onDelete: (product: AdminProductDtoVm) => void;
 };
 
 export const columns = ({
   onEdit,
+  onUpdateStatus,
   onDelete,
 }: ColumnsConfig): ColumnDef<AdminProductDtoVm>[] => [
   {
@@ -62,22 +72,28 @@ export const columns = ({
     cell: ({ row }) => {
       const product = row.original;
       return (
-        <div className="flex justify-end gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onEdit(product)}
-          >
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={() => onDelete(product)}
-          >
-            Delete
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+            <DropdownMenuItem onClick={() => onEdit(product)}>
+              Edit Product
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onUpdateStatus(product)}>
+              Update Status
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-red-600 focus:text-red-700"
+              onClick={() => onDelete(product)}
+            >
+              Delete Product
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       );
     },
   },
