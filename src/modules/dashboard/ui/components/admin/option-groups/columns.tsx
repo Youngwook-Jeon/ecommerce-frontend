@@ -4,6 +4,7 @@ import { ColumnDef } from "@tanstack/react-table";
 
 import { OptionGroupVm } from "@/common/schemas/optionGroup";
 import { Badge } from "@/components/ui/badge";
+import { getOptionStatusBadgeVariant } from "@/lib/statusBadge";
 import { OptionGroupActions } from "./OptionGroupActions";
 
 type ColumnsConfig = {
@@ -30,8 +31,7 @@ export const columns = ({
     header: "Status",
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
-      const variant = status === "ACTIVE" ? "default" : "secondary";
-      return <Badge variant={variant}>{status}</Badge>;
+      return <Badge variant={getOptionStatusBadgeVariant(status)}>{status}</Badge>;
     },
   },
   {

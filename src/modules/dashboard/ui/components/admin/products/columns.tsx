@@ -16,12 +16,14 @@ import {
 type ColumnsConfig = {
   onEdit: (product: AdminProductDtoVm) => void;
   onUpdateStatus: (product: AdminProductDtoVm) => void;
+  onManageOptions: (product: AdminProductDtoVm) => void;
   onDelete: (product: AdminProductDtoVm) => void;
 };
 
 export const columns = ({
   onEdit,
   onUpdateStatus,
+  onManageOptions,
   onDelete,
 }: ColumnsConfig): ColumnDef<AdminProductDtoVm>[] => [
   {
@@ -85,6 +87,9 @@ export const columns = ({
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onUpdateStatus(product)}>
               Update Status
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onManageOptions(product)}>
+              Manage Options
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-red-600 focus:text-red-700"

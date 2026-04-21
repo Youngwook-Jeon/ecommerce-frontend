@@ -6,6 +6,7 @@ import { PlusCircle, PlusSquare, Pencil, Trash2 } from "lucide-react";
 import { OptionGroupVm, OptionValueVm } from "@/common/schemas/optionGroup";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { getOptionStatusBadgeVariant } from "@/lib/statusBadge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -143,7 +144,7 @@ export function OptionGroupsClientPage({ initialData }: OptionGroupsClientPagePr
                         <TableCell>{value.displayName}</TableCell>
                         <TableCell>{value.sortOrder}</TableCell>
                         <TableCell>
-                          <Badge variant={value.status === "ACTIVE" ? "default" : "secondary"}>
+                          <Badge variant={getOptionStatusBadgeVariant(value.status)}>
                             {value.status}
                           </Badge>
                         </TableCell>

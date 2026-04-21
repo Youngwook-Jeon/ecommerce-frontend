@@ -13,6 +13,7 @@ import { CreateProductForm } from "./CreateProductForm";
 import { UpdateProductForm } from "./UpdateProductForm";
 import { DeleteProductDialog } from "./DeleteProductDialog";
 import { UpdateProductStatusDialog } from "./UpdateProductStatusDialog";
+import { ProductOptionManagerDialog } from "./ProductOptionManagerDialog";
 
 interface ProductsClientPageProps {
   initialPage: AdminProductPageVm;
@@ -27,6 +28,7 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
   const [isUpdateFormOpen, setIsUpdateFormOpen] = useState(false);
   const [isUpdateStatusOpen, setIsUpdateStatusOpen] = useState(false);
+  const [isOptionManagerOpen, setIsOptionManagerOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<AdminProductDtoVm | null>(null);
 
@@ -48,6 +50,10 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
         onUpdateStatus: (product) => {
           setSelectedProduct(product);
           setIsUpdateStatusOpen(true);
+        },
+        onManageOptions: (product) => {
+          setSelectedProduct(product);
+          setIsOptionManagerOpen(true);
         },
       }),
     []
@@ -164,6 +170,15 @@ export const ProductsClientPage = ({ initialPage }: ProductsClientPageProps) => 
         isOpen={isUpdateStatusOpen}
         onClose={() => {
           setIsUpdateStatusOpen(false);
+          setSelectedProduct(null);
+        }}
+        product={selectedProduct}
+      />
+
+      <ProductOptionManagerDialog
+        isOpen={isOptionManagerOpen}
+        onClose={() => {
+          setIsOptionManagerOpen(false);
           setSelectedProduct(null);
         }}
         product={selectedProduct}

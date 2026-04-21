@@ -15,6 +15,30 @@ export interface AdminProductDtoVm {
   conditionType: string;
 }
 
+export interface ProductOptionValueVm {
+  productOptionValueId: string;
+  optionValueId: string;
+  priceDelta: number;
+  isDefault: boolean;
+  status: string;
+}
+
+export interface ProductOptionGroupVm {
+  productOptionGroupId: string;
+  optionGroupId: string;
+  stepOrder: number;
+  required: boolean;
+  status: string;
+  optionValues: ProductOptionValueVm[];
+}
+
+export interface AdminProductDetailVm extends AdminProductDtoVm {
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  optionGroups: ProductOptionGroupVm[];
+}
+
 export interface AdminProductPageVm {
   content: AdminProductDtoVm[];
   page: number;
@@ -82,6 +106,31 @@ export async function getAdminProducts(
   }
 }
 
+export async function getAdminProductDetail(
+  productId: string
+): Promise<AdminProductDetailVm | null> {
+  try {
+    const response = await fetchWrapper.get(
+      `api/v1/product_service/admin/queries/products/${productId}`,
+      { cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(
+        `Error fetching admin product detail: ${response.status} ${response.statusText}`,
+        errorBody
+      );
+      return null;
+    }
+
+    return (await response.json()) as AdminProductDetailVm;
+  } catch (error) {
+    console.error("Exception in getAdminProductDetail: ", error);
+    return null;
+  }
+}
+
 // ----- 어드민용 제품 CUD API -----
 
 export interface CreateProductRequest {
@@ -104,6 +153,23 @@ export interface UpdateProductRequest {
 
 export interface UpdateProductStatusRequest {
   status: string;
+}
+
+export interface AddProductOptionValueRequest {
+  optionValueId: string;
+  priceDelta: number;
+  isDefault?: boolean;
+}
+
+export interface AddProductOptionGroupRequest {
+  optionGroupId: string;
+  stepOrder: number;
+  required: boolean;
+  optionValues: AddProductOptionValueRequest[];
+}
+
+export interface AddProductOptionValuesRequest {
+  optionValues: AddProductOptionValueRequest[];
 }
 
 export async function createProduct(data: CreateProductRequest) {
@@ -196,6 +262,51 @@ export async function deleteProduct(productId: string) {
     return { success: true, data: await response.json() };
   } catch (error: unknown) {
     console.error("An error occurred in deleteProduct Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function addProductOptionGroup(
+  productId: string,
+  payload: AddProductOptionGroupRequest
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `api/v1/product_service/admin/products/${productId}/option-groups`,
+      payload
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to add product option group.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in addProductOptionGroup Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function addProductOptionValues(
+  productId: string,
+  productOptionGroupId: string,
+  payload: AddProductOptionValuesRequest
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/option-values`,
+      payload
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to add product option values.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in addProductOptionValues Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
   }
 }
