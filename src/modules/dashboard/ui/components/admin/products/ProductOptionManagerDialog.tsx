@@ -1,6 +1,6 @@
 "use client";
 
-import { Dispatch, SetStateAction, useEffect, useMemo, useState } from "react";
+import { Dispatch, DragEvent, SetStateAction, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/hooks/use-toast";
@@ -12,7 +12,11 @@ import {
   addProductOptionValues,
   AdminProductDetailVm,
   AdminProductDtoVm,
+  ProductOptionGroupVm,
+  deleteProductOptionGroup,
+  deleteProductOptionValue,
   getAdminProductDetail,
+  reorderProductOptionGroups,
 } from "@/services/productService";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,9 +69,13 @@ export function ProductOptionManagerDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmittingGroup, setIsSubmittingGroup] = useState(false);
   const [isSubmittingValues, setIsSubmittingValues] = useState(false);
+  const [isDeletingGroupId, setIsDeletingGroupId] = useState<string | null>(null);
+  const [isDeletingValueId, setIsDeletingValueId] = useState<string | null>(null);
+  const [isReordering, setIsReordering] = useState(false);
+  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
+  const [orderedGroupIds, setOrderedGroupIds] = useState<string[]>([]);
 
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState<string>("");
-  const [stepOrder, setStepOrder] = useState(1);
   const [required, setRequired] = useState(true);
   const [newGroupSelection, setNewGroupSelection] = useState<
     Record<string, OptionSelectionConfig>
@@ -99,8 +107,14 @@ export function ProductOptionManagerDialog({
     setNewGroupSelection({});
     setExistingGroupSelection({});
     setRequired(true);
-    setStepOrder(1);
   }, [isOpen, product]);
+
+  useEffect(() => {
+    const sorted = [...(detail?.optionGroups ?? [])]
+      .sort((a, b) => a.stepOrder - b.stepOrder)
+      .map((group) => group.productOptionGroupId);
+    setOrderedGroupIds(sorted);
+  }, [detail]);
 
   const groupIdsInProduct = useMemo(
     () => new Set((detail?.optionGroups ?? []).map((group) => group.optionGroupId)),
@@ -147,6 +161,16 @@ export function ProductOptionManagerDialog({
   const selectedCountForExisting = Object.values(existingGroupSelection).filter(
     (item) => item.selected
   ).length;
+  const isDraftProduct = product?.status === "DRAFT";
+  const canAddOptionValues = product?.status === "DRAFT" || product?.status === "ACTIVE";
+  const orderedGroups = useMemo(() => {
+    const map = new Map((detail?.optionGroups ?? []).map((g) => [g.productOptionGroupId, g]));
+    const inOrder = orderedGroupIds
+      .map((id) => map.get(id))
+      .filter((group): group is ProductOptionGroupVm => Boolean(group));
+    if (inOrder.length === (detail?.optionGroups?.length ?? 0)) return inOrder;
+    return [...(detail?.optionGroups ?? [])].sort((a, b) => a.stepOrder - b.stepOrder);
+  }, [detail, orderedGroupIds]);
 
   const onToggleNewGroupValue = (optionValueId: string, checked: boolean) => {
     setNewGroupSelection((prev) => ({
@@ -204,7 +228,6 @@ export function ProductOptionManagerDialog({
     setIsSubmittingGroup(true);
     const result = await addProductOptionGroup(product.id, {
       optionGroupId: selectedGlobalGroupId,
-      stepOrder,
       required,
       optionValues,
     });
@@ -224,10 +247,8 @@ export function ProductOptionManagerDialog({
       description: "The option group has been linked to this product.",
     });
     
-    // 성공 시 입력 폼 상태 완전히 초기화
     setSelectedGlobalGroupId("");
     setNewGroupSelection({});
-    setStepOrder(1); 
     setRequired(true);
     
     await refreshData();
@@ -279,6 +300,105 @@ export function ProductOptionManagerDialog({
     router.refresh();
   };
 
+  const handleDeleteOptionGroup = async (productOptionGroupId: string) => {
+    if (!product || !isDraftProduct) return;
+    if (
+      !window.confirm(
+        "Deleting this option group will soft-delete all variants of this product. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingGroupId(productOptionGroupId);
+    const result = await deleteProductOptionGroup(product.id, productOptionGroupId);
+    setIsDeletingGroupId(null);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to delete option group",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Option group deleted",
+      description: "The option group was soft-deleted and all variants were invalidated.",
+    });
+    await refreshData();
+    router.refresh();
+  };
+
+  const handleDeleteOptionValue = async (productOptionValueId: string) => {
+    if (!product || !isDraftProduct) return;
+    if (
+      !window.confirm(
+        "Deleting this option value will soft-delete variants containing this value. Continue?"
+      )
+    ) {
+      return;
+    }
+
+    setIsDeletingValueId(productOptionValueId);
+    const result = await deleteProductOptionValue(product.id, productOptionValueId);
+    setIsDeletingValueId(null);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to delete option value",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Option value deleted",
+      description: "The option value was soft-deleted and related variants were invalidated.",
+    });
+    await refreshData();
+    router.refresh();
+  };
+
+  const handleDragOverGroup = (e: DragEvent<HTMLDivElement>, targetId: string) => {
+    e.preventDefault();
+    if (!draggingGroupId || draggingGroupId === targetId) return;
+    setOrderedGroupIds((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(draggingGroupId);
+      const to = next.indexOf(targetId);
+      if (from < 0 || to < 0) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, draggingGroupId);
+      return next;
+    });
+  };
+
+  const handleSaveGroupOrder = async () => {
+    if (!product || !isDraftProduct || orderedGroups.length === 0) return;
+    setIsReordering(true);
+    const orderedProductOptionGroupIds = orderedGroups.map((group) => group.productOptionGroupId);
+    const result = await reorderProductOptionGroups(product.id, orderedProductOptionGroupIds);
+    if (!result.success) {
+      setIsReordering(false);
+      toast({
+        variant: "destructive",
+        title: "Failed to reorder option groups",
+        description: result.message,
+      });
+      return;
+    }
+    setIsReordering(false);
+    toast({
+      title: "Order updated",
+      description: "Option group order has been updated.",
+    });
+    await refreshData();
+    router.refresh();
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
@@ -290,21 +410,46 @@ export function ProductOptionManagerDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {!isDraftProduct ? (
+          <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700">
+            Option group add/delete and reordering are available only when the product is DRAFT.
+            Adding option values to an existing group is available in DRAFT and ACTIVE.
+          </div>
+        ) : null}
+
         <div className="space-y-6">
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold">Currently Linked Option Groups</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Currently Linked Option Groups</h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!isDraftProduct || isReordering || orderedGroups.length < 2}
+                onClick={handleSaveGroupOrder}
+              >
+                {isReordering ? "Saving Order..." : "Save Group Order"}
+              </Button>
+            </div>
             {isLoading ? (
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : detail?.optionGroups.length ? (
               <div className="space-y-3">
-                {detail.optionGroups.map((group) => {
+                {orderedGroups.map((group) => {
                   // UI 표시를 위해 원본 글로벌 그룹 찾기
                   const globalGroup = globalOptionGroups.find(
                     (g) => g.id === group.optionGroupId
                   );
 
                   return (
-                    <div key={group.productOptionGroupId} className="rounded-md border p-3">
+                    <div
+                      key={group.productOptionGroupId}
+                      draggable={isDraftProduct}
+                      onDragStart={() => setDraggingGroupId(group.productOptionGroupId)}
+                      onDragEnd={() => setDraggingGroupId(null)}
+                      onDragOver={(e) => handleDragOverGroup(e, group.productOptionGroupId)}
+                      className="rounded-md border p-3"
+                    >
                       <div className="flex items-center gap-2">
                         {/* 글로벌 사전의 이름으로 노출 */}
                         <p className="text-sm font-medium">
@@ -317,6 +462,21 @@ export function ProductOptionManagerDialog({
                         <Badge variant={getOptionStatusBadgeVariant(group.status)}>
                           {group.status}
                         </Badge>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        disabled={
+                          !isDraftProduct ||
+                          group.status === "DELETED" ||
+                          isDeletingGroupId === group.productOptionGroupId
+                        }
+                        onClick={() => handleDeleteOptionGroup(group.productOptionGroupId)}
+                      >
+                        {isDeletingGroupId === group.productOptionGroupId
+                          ? "Deleting..."
+                          : "Delete Group"}
+                      </Button>
                       </div>
                       
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -335,13 +495,27 @@ export function ProductOptionManagerDialog({
                             : "";
 
                           return (
-                            <Badge
-                              key={value.productOptionValueId}
-                              variant={getOptionStatusBadgeVariant(value.status)}
-                            >
-                              {displayLabel}
-                              {priceDeltaText} - {value.status}
-                            </Badge>
+                            <div key={value.productOptionValueId} className="inline-flex items-center gap-1">
+                              <Badge variant={getOptionStatusBadgeVariant(value.status)}>
+                                {displayLabel}
+                                {priceDeltaText} - {value.status}
+                              </Badge>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={
+                                  !isDraftProduct ||
+                                  value.status === "DELETED" ||
+                                  isDeletingValueId === value.productOptionValueId
+                                }
+                                onClick={() => handleDeleteOptionValue(value.productOptionValueId)}
+                              >
+                                {isDeletingValueId === value.productOptionValueId
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </Button>
+                            </div>
                           );
                         })}
                       </div>
@@ -358,7 +532,7 @@ export function ProductOptionManagerDialog({
 
           <section className="space-y-3 rounded-md border p-4">
             <h3 className="text-sm font-semibold">Add Option Group</h3>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Global Option Group</Label>
                 <Select
@@ -379,15 +553,6 @@ export function ProductOptionManagerDialog({
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Step Order</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={stepOrder}
-                  onChange={(e) => setStepOrder(Number(e.target.value || 1))}
-                />
               </div>
               <div className="flex items-end gap-2 pb-2">
                 <Checkbox
@@ -457,7 +622,7 @@ export function ProductOptionManagerDialog({
             <div className="flex justify-end">
               <Button
                 type="button"
-                disabled={!selectedGlobalGroupId || isSubmittingGroup}
+                disabled={!isDraftProduct || !selectedGlobalGroupId || isSubmittingGroup}
                 onClick={handleAddGroup}
               >
                 {isSubmittingGroup ? "Adding..." : "Add Option Group"}
@@ -560,7 +725,7 @@ export function ProductOptionManagerDialog({
             <div className="flex justify-end">
               <Button
                 type="button"
-                disabled={!selectedProductOptionGroupId || isSubmittingValues}
+                disabled={!canAddOptionValues || !selectedProductOptionGroupId || isSubmittingValues}
                 onClick={handleAddValuesToGroup}
               >
                 {isSubmittingValues ? "Adding..." : "Add Option Values"}

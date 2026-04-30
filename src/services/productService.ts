@@ -163,7 +163,7 @@ export interface AddProductOptionValueRequest {
 
 export interface AddProductOptionGroupRequest {
   optionGroupId: string;
-  stepOrder: number;
+  stepOrder?: number;
   required: boolean;
   optionValues: AddProductOptionValueRequest[];
 }
@@ -307,6 +307,94 @@ export async function addProductOptionValues(
     return { success: true, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in addProductOptionValues Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function deleteProductOptionGroup(
+  productId: string,
+  productOptionGroupId: string
+) {
+  try {
+    const response = await fetchWrapper.del(
+      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}`
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to delete product option group.");
+    }
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteProductOptionGroup Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function deleteProductOptionValue(
+  productId: string,
+  productOptionValueId: string
+) {
+  try {
+    const response = await fetchWrapper.del(
+      `api/v1/product_service/admin/products/${productId}/option-values/${productOptionValueId}`
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to delete product option value.");
+    }
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteProductOptionValue Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function changeProductOptionGroupStepOrder(
+  productId: string,
+  productOptionGroupId: string,
+  stepOrder: number
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/step-order`,
+      { stepOrder }
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(
+        responseData.message || "Failed to update product option group step order."
+      );
+    }
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error(
+      "An error occurred in changeProductOptionGroupStepOrder Server Action:",
+      error
+    );
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function reorderProductOptionGroups(
+  productId: string,
+  orderedProductOptionGroupIds: string[]
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `api/v1/product_service/admin/products/${productId}/option-groups/reorder`,
+      { orderedProductOptionGroupIds }
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to reorder product option groups.");
+    }
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in reorderProductOptionGroups Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
   }
 }
