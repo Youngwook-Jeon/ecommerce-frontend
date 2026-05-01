@@ -117,7 +117,12 @@ export function ProductOptionManagerDialog({
   }, [detail]);
 
   const groupIdsInProduct = useMemo(
-    () => new Set((detail?.optionGroups ?? []).map((group) => group.optionGroupId)),
+    () =>
+      new Set(
+        (detail?.optionGroups ?? [])
+          .filter((group) => group.status !== "DELETED")
+          .map((group) => group.optionGroupId)
+      ),
     [detail]
   );
 
@@ -167,9 +172,11 @@ export function ProductOptionManagerDialog({
     const map = new Map((detail?.optionGroups ?? []).map((g) => [g.productOptionGroupId, g]));
     const inOrder = orderedGroupIds
       .map((id) => map.get(id))
-      .filter((group): group is ProductOptionGroupVm => Boolean(group));
-    if (inOrder.length === (detail?.optionGroups?.length ?? 0)) return inOrder;
-    return [...(detail?.optionGroups ?? [])].sort((a, b) => a.stepOrder - b.stepOrder);
+      .filter((group): group is ProductOptionGroupVm => Boolean(group))
+      .filter((group) => group.status !== "DELETED");
+    const activeGroups = (detail?.optionGroups ?? []).filter((group) => group.status !== "DELETED");
+    if (inOrder.length === activeGroups.length) return inOrder;
+    return [...activeGroups].sort((a, b) => a.stepOrder - b.stepOrder);
   }, [detail, orderedGroupIds]);
 
   const onToggleNewGroupValue = (optionValueId: string, checked: boolean) => {
@@ -435,7 +442,7 @@ export function ProductOptionManagerDialog({
               <p className="text-sm text-muted-foreground">Loading...</p>
             ) : detail?.optionGroups.length ? (
               <div className="space-y-3">
-                {orderedGroups.map((group) => {
+                {orderedGroups.map((group, index) => {
                   // UI 표시를 위해 원본 글로벌 그룹 찾기
                   const globalGroup = globalOptionGroups.find(
                     (g) => g.id === group.optionGroupId
@@ -455,7 +462,7 @@ export function ProductOptionManagerDialog({
                         <p className="text-sm font-medium">
                           {globalGroup ? `${globalGroup.displayName} (${globalGroup.name})` : group.optionGroupId}
                         </p>
-                        <Badge variant="outline">step {group.stepOrder}</Badge>
+                        <Badge variant="outline">step {index + 1}</Badge>
                         <Badge variant={group.required ? "default" : "secondary"}>
                           {group.required ? "REQUIRED" : "OPTIONAL"}
                         </Badge>
