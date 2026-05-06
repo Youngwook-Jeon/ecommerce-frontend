@@ -39,6 +39,15 @@ export interface AdminProductDetailVm extends AdminProductDtoVm {
   optionGroups: ProductOptionGroupVm[];
 }
 
+export interface ProductVariantVm {
+  productVariantId: string;
+  sku: string;
+  stockQuantity: number;
+  status: string;
+  calculatedPrice: number;
+  selectedProductOptionValueIds: string[];
+}
+
 export interface AdminProductPageVm {
   content: AdminProductDtoVm[];
   page: number;
@@ -127,6 +136,31 @@ export async function getAdminProductDetail(
     return (await response.json()) as AdminProductDetailVm;
   } catch (error) {
     console.error("Exception in getAdminProductDetail: ", error);
+    return null;
+  }
+}
+
+export async function getAdminProductVariants(
+  productId: string
+): Promise<ProductVariantVm[] | null> {
+  try {
+    const response = await fetchWrapper.get(
+      `api/v1/product_service/admin/queries/products/${productId}/variants`,
+      { cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error(
+        `Error fetching admin product variants: ${response.status} ${response.statusText}`,
+        errorBody
+      );
+      return null;
+    }
+
+    return (await response.json()) as ProductVariantVm[];
+  } catch (error: unknown) {
+    console.error("Exception in getAdminProductVariants:", error);
     return null;
   }
 }

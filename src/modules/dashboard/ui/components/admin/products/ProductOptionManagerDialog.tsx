@@ -16,11 +16,14 @@ import {
   deleteProductOptionGroup,
   deleteProductOptionValue,
   getAdminProductDetail,
+  getAdminProductVariants,
   reorderProductOptionGroups,
+  ProductVariantVm,
 } from "@/services/productService";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -66,7 +69,9 @@ export function ProductOptionManagerDialog({
   const { toast } = useToast();
   const [detail, setDetail] = useState<AdminProductDetailVm | null>(null);
   const [globalOptionGroups, setGlobalOptionGroups] = useState<OptionGroupVm[]>([]);
+  const [variants, setVariants] = useState<ProductVariantVm[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVariantsLoading, setIsVariantsLoading] = useState(false);
   const [isSubmittingGroup, setIsSubmittingGroup] = useState(false);
   const [isSubmittingValues, setIsSubmittingValues] = useState(false);
   const [isDeletingGroupId, setIsDeletingGroupId] = useState<string | null>(null);
@@ -90,13 +95,17 @@ export function ProductOptionManagerDialog({
   const refreshData = async () => {
     if (!product) return;
     setIsLoading(true);
-    const [detailResult, globalGroups] = await Promise.all([
+    setIsVariantsLoading(true);
+    const [detailResult, globalGroups, variantsResult] = await Promise.all([
       getAdminProductDetail(product.id),
       getAdminOptionGroups(),
+      getAdminProductVariants(product.id),
     ]);
     setDetail(detailResult);
     setGlobalOptionGroups(globalGroups.filter((group) => group.status !== "DELETED"));
+    setVariants(variantsResult ?? []);
     setIsLoading(false);
+    setIsVariantsLoading(false);
   };
 
   useEffect(() => {
@@ -107,6 +116,7 @@ export function ProductOptionManagerDialog({
     setNewGroupSelection({});
     setExistingGroupSelection({});
     setRequired(true);
+    setVariants([]);
   }, [isOpen, product]);
 
   useEffect(() => {
@@ -130,6 +140,31 @@ export function ProductOptionManagerDialog({
     () => globalOptionGroups.filter((group) => !groupIdsInProduct.has(group.id)),
     [globalOptionGroups, groupIdsInProduct]
   );
+
+  const optionValueLabelByProductOptionValueId = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const localGroup of detail?.optionGroups ?? []) {
+      const globalGroup = globalOptionGroups.find(
+        (g) => g.id === localGroup.optionGroupId
+      );
+
+      for (const value of localGroup.optionValues) {
+        const globalValue = globalGroup?.optionValues.find(
+          (ov) => ov.id === value.optionValueId
+        );
+
+        map.set(
+          value.productOptionValueId,
+          globalValue
+            ? `${globalValue.displayName} (${globalValue.value})`
+            : value.optionValueId
+        );
+      }
+    }
+
+    return map;
+  }, [detail, globalOptionGroups]);
 
   const selectedGlobalGroup = useMemo(
     () => globalOptionGroups.find((group) => group.id === selectedGlobalGroupId) ?? null,
@@ -424,8 +459,15 @@ export function ProductOptionManagerDialog({
           </div>
         ) : null}
 
-        <div className="space-y-6">
-          <section className="space-y-3">
+        <Tabs defaultValue="optionGroups" className="w-full">
+          <TabsList>
+            <TabsTrigger value="optionGroups">Option Groups</TabsTrigger>
+            <TabsTrigger value="variants">Variants</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="optionGroups">
+            <div className="space-y-6">
+              <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Currently Linked Option Groups</h3>
               <Button
@@ -469,21 +511,21 @@ export function ProductOptionManagerDialog({
                         <Badge variant={getOptionStatusBadgeVariant(group.status)}>
                           {group.status}
                         </Badge>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        disabled={
-                          !isDraftProduct ||
-                          group.status === "DELETED" ||
-                          isDeletingGroupId === group.productOptionGroupId
-                        }
-                        onClick={() => handleDeleteOptionGroup(group.productOptionGroupId)}
-                      >
-                        {isDeletingGroupId === group.productOptionGroupId
-                          ? "Deleting..."
-                          : "Delete Group"}
-                      </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={
+                              !isDraftProduct ||
+                              group.status === "DELETED" ||
+                              isDeletingGroupId === group.productOptionGroupId
+                            }
+                            onClick={() => handleDeleteOptionGroup(group.productOptionGroupId)}
+                          >
+                            {isDeletingGroupId === group.productOptionGroupId
+                              ? "Deleting..."
+                              : "Delete Group"}
+                          </Button>
                       </div>
                       
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -535,9 +577,9 @@ export function ProductOptionManagerDialog({
                 No option groups are linked yet.
               </p>
             )}
-          </section>
+              </section>
 
-          <section className="space-y-3 rounded-md border p-4">
+              <section className="space-y-3 rounded-md border p-4">
             <h3 className="text-sm font-semibold">Add Option Group</h3>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="space-y-2">
@@ -739,7 +781,71 @@ export function ProductOptionManagerDialog({
               </Button>
             </div>
           </section>
-        </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="variants">
+            <div className="space-y-6 p-1">
+              <section className="space-y-3 rounded-md border p-4">
+                <h3 className="text-sm font-semibold">Product Variants</h3>
+
+                {isVariantsLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading...</p>
+                ) : variants.length ? (
+                  <div className="space-y-3">
+                    {variants.map((variant) => {
+                      return (
+                        <div
+                          key={variant.productVariantId}
+                          className="rounded-md border p-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-medium">{variant.sku}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Stock: {variant.stockQuantity}
+                              </p>
+                            </div>
+                            <Badge
+                              variant={
+                                variant.status === "ACTIVE" ? "default" : "secondary"
+                              }
+                            >
+                              {variant.status}
+                            </Badge>
+                          </div>
+
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Price: ${variant.calculatedPrice}
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {variant.selectedProductOptionValueIds.length ? (
+                              variant.selectedProductOptionValueIds.map((id) => (
+                                <Badge key={id} variant="outline">
+                                  {optionValueLabelByProductOptionValueId.get(id) ??
+                                    id}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                No selected options
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No variants found.
+                  </p>
+                )}
+              </section>
+            </div>
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter>
           <Button type="button" variant="secondary" onClick={onClose}>
