@@ -8,6 +8,7 @@ import { getOptionStatusBadgeVariant } from "@/lib/statusBadge";
 import { OptionGroupVm } from "@/common/schemas/optionGroup";
 import { getAdminOptionGroups } from "@/services/optionGroupService";
 import {
+  addProductVariants,
   addProductOptionGroup,
   addProductOptionValues,
   AdminProductDetailVm,
@@ -60,6 +61,8 @@ const emptySelection = (): OptionSelectionConfig => ({
   isDefault: false,
 });
 
+const MAX_CARTESIAN_VARIANT_BATCH_SIZE = 200;
+
 export function ProductOptionManagerDialog({
   product,
   isOpen,
@@ -74,6 +77,7 @@ export function ProductOptionManagerDialog({
   const [isVariantsLoading, setIsVariantsLoading] = useState(false);
   const [isSubmittingGroup, setIsSubmittingGroup] = useState(false);
   const [isSubmittingValues, setIsSubmittingValues] = useState(false);
+  const [isSubmittingVariant, setIsSubmittingVariant] = useState(false);
   const [isDeletingGroupId, setIsDeletingGroupId] = useState<string | null>(null);
   const [isDeletingValueId, setIsDeletingValueId] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
@@ -90,6 +94,15 @@ export function ProductOptionManagerDialog({
     useState<string>("");
   const [existingGroupSelection, setExistingGroupSelection] = useState<
     Record<string, OptionSelectionConfig>
+  >({});
+  const [variantStockQuantity, setVariantStockQuantity] = useState<number>(0);
+  const [variantSelectionsByGroup, setVariantSelectionsByGroup] = useState<
+    Record<string, string>
+  >({});
+  const [bulkVariantStockQuantity, setBulkVariantStockQuantity] = useState<number>(0);
+  const [isSubmittingVariantBulk, setIsSubmittingVariantBulk] = useState(false);
+  const [cartesianSelectionsByGroup, setCartesianSelectionsByGroup] = useState<
+    Record<string, Record<string, boolean>>
   >({});
 
   const refreshData = async () => {
@@ -115,6 +128,10 @@ export function ProductOptionManagerDialog({
     setSelectedProductOptionGroupId("");
     setNewGroupSelection({});
     setExistingGroupSelection({});
+    setVariantSelectionsByGroup({});
+    setVariantStockQuantity(0);
+    setBulkVariantStockQuantity(0);
+    setCartesianSelectionsByGroup({});
     setRequired(true);
     setVariants([]);
   }, [isOpen, product]);
@@ -213,6 +230,110 @@ export function ProductOptionManagerDialog({
     if (inOrder.length === activeGroups.length) return inOrder;
     return [...activeGroups].sort((a, b) => a.stepOrder - b.stepOrder);
   }, [detail, orderedGroupIds]);
+
+  const variantGroups = useMemo(
+    () =>
+      orderedGroups
+        .filter((group) => group.status !== "DELETED")
+        .map((group) => ({
+          group,
+          globalGroup:
+            globalOptionGroups.find((g) => g.id === group.optionGroupId) ?? null,
+          optionValues: group.optionValues.filter((value) => value.status !== "DELETED"),
+        })),
+    [orderedGroups, globalOptionGroups]
+  );
+
+  const existingActiveVariantCombinationKeys = useMemo(() => {
+    return new Set(
+      variants
+        .filter((variant) => variant.status !== "DELETED")
+        .map((variant) =>
+        [...variant.selectedProductOptionValueIds].sort().join("|")
+      )
+    );
+  }, [variants]);
+
+  const cartesianSelectedValueIdsByGroup = useMemo(() => {
+    return variantGroups.map(({ group, optionValues }) => {
+      const selectedMap = cartesianSelectionsByGroup[group.productOptionGroupId] ?? {};
+      const selectedIds = optionValues
+        .filter((value) => selectedMap[value.productOptionValueId])
+        .map((value) => value.productOptionValueId);
+      return {
+        groupId: group.productOptionGroupId,
+        selectedIds,
+      };
+    });
+  }, [variantGroups, cartesianSelectionsByGroup]);
+
+  const rawCartesianCombinationCount = useMemo(() => {
+    const selectedGroups = cartesianSelectedValueIdsByGroup.filter(
+      (entry) => entry.selectedIds.length > 0
+    );
+    if (selectedGroups.length === 0) return 0;
+    return selectedGroups.reduce((acc, entry) => acc * entry.selectedIds.length, 1);
+  }, [cartesianSelectedValueIdsByGroup]);
+
+  const cartesianCombinationsForCreate = useMemo(() => {
+    const selectedGroups = cartesianSelectedValueIdsByGroup.filter(
+      (entry) => entry.selectedIds.length > 0
+    );
+    if (selectedGroups.length === 0) return [];
+
+    let combinations: string[][] = [[]];
+    for (const entry of selectedGroups) {
+      const next: string[][] = [];
+      for (const base of combinations) {
+        for (const selectedId of entry.selectedIds) {
+          next.push([...base, selectedId]);
+          if (next.length >= MAX_CARTESIAN_VARIANT_BATCH_SIZE) {
+            break;
+          }
+        }
+        if (next.length >= MAX_CARTESIAN_VARIANT_BATCH_SIZE) {
+          break;
+        }
+      }
+      combinations = next;
+      if (combinations.length >= MAX_CARTESIAN_VARIANT_BATCH_SIZE) {
+        break;
+      }
+    }
+
+    return combinations.filter((combo) => {
+      const key = [...combo].sort().join("|");
+      return !existingActiveVariantCombinationKeys.has(key);
+    });
+  }, [cartesianSelectedValueIdsByGroup, existingActiveVariantCombinationKeys]);
+
+  const skippedExistingCombinationCount = useMemo(() => {
+    if (rawCartesianCombinationCount <= 0) return 0;
+    const created = cartesianCombinationsForCreate.length;
+    return Math.max(rawCartesianCombinationCount - created, 0);
+  }, [rawCartesianCombinationCount, cartesianCombinationsForCreate.length]);
+
+  const missingRequiredGroupsForCartesian = useMemo(() => {
+    const selectedCountByGroup = new Map(
+      cartesianSelectedValueIdsByGroup.map((entry) => [entry.groupId, entry.selectedIds.length])
+    );
+    return variantGroups
+      .filter(({ group }) => group.required)
+      .filter(
+        ({ group }) => (selectedCountByGroup.get(group.productOptionGroupId) ?? 0) === 0
+      )
+      .map(({ group, globalGroup }) =>
+        globalGroup ? `${globalGroup.displayName} (${globalGroup.name})` : group.optionGroupId
+      );
+  }, [cartesianSelectedValueIdsByGroup, variantGroups]);
+
+  const cartesianPreviewRows = useMemo(() => {
+    return cartesianCombinationsForCreate.slice(0, 10).map((combo) =>
+      combo
+        .map((id) => optionValueLabelByProductOptionValueId.get(id) ?? id)
+        .join(" / ")
+    );
+  }, [cartesianCombinationsForCreate, optionValueLabelByProductOptionValueId]);
 
   const onToggleNewGroupValue = (optionValueId: string, checked: boolean) => {
     setNewGroupSelection((prev) => ({
@@ -437,6 +558,118 @@ export function ProductOptionManagerDialog({
       title: "Order updated",
       description: "Option group order has been updated.",
     });
+    await refreshData();
+    router.refresh();
+  };
+
+  const handleAddVariant = async () => {
+    if (!product || !isDraftProduct) return;
+
+    const selectedProductOptionValueIds = Object.values(variantSelectionsByGroup).filter(
+      Boolean
+    );
+    if (selectedProductOptionValueIds.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Selection required",
+        description: "Select at least one option value to create a variant.",
+      });
+      return;
+    }
+
+    setIsSubmittingVariant(true);
+    const result = await addProductVariants(product.id, {
+      variants: [
+        {
+          stockQuantity: variantStockQuantity,
+          selectedProductOptionValueIds,
+        },
+      ],
+    });
+    setIsSubmittingVariant(false);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to add variant",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Variant added",
+      description: "A new product variant has been created.",
+    });
+    setVariantSelectionsByGroup({});
+    setVariantStockQuantity(0);
+    await refreshData();
+    router.refresh();
+  };
+
+  const toggleCartesianSelection = (
+    productOptionGroupId: string,
+    productOptionValueId: string,
+    checked: boolean
+  ) => {
+    setCartesianSelectionsByGroup((prev) => ({
+      ...prev,
+      [productOptionGroupId]: {
+        ...(prev[productOptionGroupId] ?? {}),
+        [productOptionValueId]: checked,
+      },
+    }));
+  };
+
+  const handleAddVariantCartesian = async () => {
+    if (!product || !isDraftProduct) return;
+    if (missingRequiredGroupsForCartesian.length > 0) {
+      toast({
+        variant: "destructive",
+        title: "Required group selection missing",
+        description: `Select at least one option value for required groups: ${missingRequiredGroupsForCartesian.join(", ")}`,
+      });
+      return;
+    }
+    if (cartesianCombinationsForCreate.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No combinations to add",
+        description:
+          rawCartesianCombinationCount > 0
+            ? "All selected combinations already exist, or the generated batch is empty."
+            : "Select at least one option value in each target group.",
+      });
+      return;
+    }
+
+    setIsSubmittingVariantBulk(true);
+    const result = await addProductVariants(product.id, {
+      variants: cartesianCombinationsForCreate.map((selectedProductOptionValueIds) => ({
+        stockQuantity: bulkVariantStockQuantity,
+        selectedProductOptionValueIds,
+      })),
+    });
+    setIsSubmittingVariantBulk(false);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to generate variants",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Variants generated",
+      description:
+        skippedExistingCombinationCount > 0
+          ? `${cartesianCombinationsForCreate.length} variants created, ${skippedExistingCombinationCount} existing active combinations skipped.`
+          : `${cartesianCombinationsForCreate.length} variants were created from selected combinations.`,
+    });
+    setCartesianSelectionsByGroup({});
+    setBulkVariantStockQuantity(0);
     await refreshData();
     router.refresh();
   };
@@ -786,6 +1019,192 @@ export function ProductOptionManagerDialog({
 
           <TabsContent value="variants">
             <div className="space-y-6 p-1">
+              <section className="space-y-3 rounded-md border p-4">
+                <h3 className="text-sm font-semibold">Create Variant</h3>
+                {!isDraftProduct ? (
+                  <p className="text-xs text-muted-foreground">
+                    Variants can be created only when the product is DRAFT.
+                  </p>
+                ) : null}
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  {variantGroups.map(({ group, globalGroup, optionValues }) => (
+                    <div key={group.productOptionGroupId} className="space-y-2">
+                      <Label>
+                        {globalGroup
+                          ? `${globalGroup.displayName} (${globalGroup.name})`
+                          : group.optionGroupId}
+                      </Label>
+                      <Select
+                        value={variantSelectionsByGroup[group.productOptionGroupId] ?? ""}
+                        onValueChange={(value) =>
+                          setVariantSelectionsByGroup((prev) => ({
+                            ...prev,
+                            [group.productOptionGroupId]: value,
+                          }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select option value" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {optionValues.map((value) => (
+                            <SelectItem
+                              key={value.productOptionValueId}
+                              value={value.productOptionValueId}
+                            >
+                              {optionValueLabelByProductOptionValueId.get(
+                                value.productOptionValueId
+                              ) ?? value.optionValueId}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="max-w-xs space-y-2">
+                  <Label>Stock Quantity</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={variantStockQuantity}
+                    onChange={(e) => setVariantStockQuantity(Number(e.target.value || 0))}
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    disabled={!isDraftProduct || isSubmittingVariant}
+                    onClick={handleAddVariant}
+                  >
+                    {isSubmittingVariant ? "Adding..." : "Add Variant"}
+                  </Button>
+                </div>
+              </section>
+
+              <section className="space-y-3 rounded-md border p-4">
+                <h3 className="text-sm font-semibold">
+                  Auto Generate Variants (Cartesian Product)
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Select multiple values per group and generate all combinations at
+                  once.
+                </p>
+
+                <div className="space-y-3">
+                  {variantGroups.map(({ group, globalGroup, optionValues }) => (
+                    <div
+                      key={`cartesian-${group.productOptionGroupId}`}
+                      className="space-y-2 rounded-md border p-3"
+                    >
+                      <p className="text-sm font-medium">
+                        {globalGroup
+                          ? `${globalGroup.displayName} (${globalGroup.name})`
+                          : group.optionGroupId}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {optionValues.map((value) => {
+                          const checked = Boolean(
+                            cartesianSelectionsByGroup[group.productOptionGroupId]?.[
+                              value.productOptionValueId
+                            ]
+                          );
+                          return (
+                            <label
+                              key={value.productOptionValueId}
+                              className="inline-flex items-center gap-2 rounded border px-2 py-1 text-xs"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(next) =>
+                                  toggleCartesianSelection(
+                                    group.productOptionGroupId,
+                                    value.productOptionValueId,
+                                    Boolean(next)
+                                  )
+                                }
+                              />
+                              <span>
+                                {optionValueLabelByProductOptionValueId.get(
+                                  value.productOptionValueId
+                                ) ?? value.optionValueId}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {missingRequiredGroupsForCartesian.length > 0 ? (
+                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700">
+                    Required group selection missing: {missingRequiredGroupsForCartesian.join(", ")}
+                  </div>
+                ) : null}
+
+                <div className="max-w-xs space-y-2">
+                  <Label>Stock Quantity for Generated Variants</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={bulkVariantStockQuantity}
+                    onChange={(e) =>
+                      setBulkVariantStockQuantity(Number(e.target.value || 0))
+                    }
+                    placeholder="0"
+                  />
+                </div>
+
+                <div className="rounded-md border bg-muted/30 p-3 text-xs">
+                  <p>
+                    Raw combinations: {rawCartesianCombinationCount}
+                    {rawCartesianCombinationCount > MAX_CARTESIAN_VARIANT_BATCH_SIZE
+                      ? ` (only first ${MAX_CARTESIAN_VARIANT_BATCH_SIZE} are processed)`
+                      : ""}
+                  </p>
+                  <p>
+                    New combinations to create: {cartesianCombinationsForCreate.length}
+                  </p>
+                  <p>Skipped existing active combinations: {skippedExistingCombinationCount}</p>
+                </div>
+
+                <div className="rounded-md border p-3 text-xs">
+                  <p className="mb-2 font-medium">Combination preview (up to 10)</p>
+                  {cartesianPreviewRows.length > 0 ? (
+                    <div className="space-y-1">
+                      {cartesianPreviewRows.map((row, index) => (
+                        <p key={`${row}-${index}`} className="text-muted-foreground">
+                          {index + 1}. {row}
+                        </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No combinations to preview.</p>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    disabled={
+                      !isDraftProduct ||
+                      isSubmittingVariantBulk ||
+                      missingRequiredGroupsForCartesian.length > 0
+                    }
+                    onClick={handleAddVariantCartesian}
+                  >
+                    {isSubmittingVariantBulk
+                      ? "Generating..."
+                      : "Generate Variants"}
+                  </Button>
+                </div>
+              </section>
+
               <section className="space-y-3 rounded-md border p-4">
                 <h3 className="text-sm font-semibold">Product Variants</h3>
 

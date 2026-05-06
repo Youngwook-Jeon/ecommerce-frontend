@@ -206,6 +206,15 @@ export interface AddProductOptionValuesRequest {
   optionValues: AddProductOptionValueRequest[];
 }
 
+export interface AddProductVariantRequest {
+  stockQuantity: number;
+  selectedProductOptionValueIds: string[];
+}
+
+export interface AddProductVariantsRequest {
+  variants: AddProductVariantRequest[];
+}
+
 export async function createProduct(data: CreateProductRequest) {
   const requestBody = {
     ...data,
@@ -429,6 +438,28 @@ export async function reorderProductOptionGroups(
     return { success: true, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in reorderProductOptionGroups Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function addProductVariants(
+  productId: string,
+  payload: AddProductVariantsRequest
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `api/v1/product_service/admin/products/${productId}/variants`,
+      payload
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to add product variants.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in addProductVariants Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
   }
 }
