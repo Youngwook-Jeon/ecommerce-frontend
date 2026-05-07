@@ -215,6 +215,11 @@ export interface AddProductVariantsRequest {
   variants: AddProductVariantRequest[];
 }
 
+export interface UpdateProductVariantRequest {
+  stockQuantity?: number;
+  status?: string;
+}
+
 export async function createProduct(data: CreateProductRequest) {
   const requestBody = {
     ...data,
@@ -460,6 +465,47 @@ export async function addProductVariants(
     return { success: true, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in addProductVariants Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function updateProductVariant(
+  productId: string,
+  productVariantId: string,
+  payload: UpdateProductVariantRequest
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `api/v1/product_service/admin/products/${productId}/variants/${productVariantId}`,
+      payload
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to update product variant.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in updateProductVariant Server Action:", error);
+    return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function deleteProductVariant(productId: string, productVariantId: string) {
+  try {
+    const response = await fetchWrapper.del(
+      `api/v1/product_service/admin/products/${productId}/variants/${productVariantId}`
+    );
+
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to delete product variant.");
+    }
+
+    return { success: true, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteProductVariant Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
   }
 }

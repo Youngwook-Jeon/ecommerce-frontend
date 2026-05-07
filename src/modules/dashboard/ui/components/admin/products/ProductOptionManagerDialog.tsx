@@ -4,11 +4,11 @@ import { Dispatch, DragEvent, SetStateAction, useEffect, useMemo, useState } fro
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/hooks/use-toast";
-import { getOptionStatusBadgeVariant } from "@/lib/statusBadge";
 import { OptionGroupVm } from "@/common/schemas/optionGroup";
 import { getAdminOptionGroups } from "@/services/optionGroupService";
 import {
   addProductVariants,
+  deleteProductVariant,
   addProductOptionGroup,
   addProductOptionValues,
   AdminProductDetailVm,
@@ -20,11 +20,10 @@ import {
   getAdminProductVariants,
   reorderProductOptionGroups,
   ProductVariantVm,
+  updateProductVariant,
 } from "@/services/productService";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -33,21 +32,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { OptionGroupsTab } from "./OptionGroupsTab";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-type OptionSelectionConfig = {
-  selected: boolean;
-  priceDelta: number;
-  isDefault: boolean;
-};
+  OptionGroupsTabProps,
+  OptionSelectionConfig,
+  VariantsTabProps,
+} from "./productOptionManager.types";
+import { VariantsTab } from "./VariantsTab";
 
 interface ProductOptionManagerDialogProps {
   product: AdminProductDtoVm | null;
@@ -80,6 +71,8 @@ export function ProductOptionManagerDialog({
   const [isSubmittingVariant, setIsSubmittingVariant] = useState(false);
   const [isDeletingGroupId, setIsDeletingGroupId] = useState<string | null>(null);
   const [isDeletingValueId, setIsDeletingValueId] = useState<string | null>(null);
+  const [isUpdatingVariantId, setIsUpdatingVariantId] = useState<string | null>(null);
+  const [isDeletingVariantId, setIsDeletingVariantId] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [orderedGroupIds, setOrderedGroupIds] = useState<string[]>([]);
@@ -101,6 +94,8 @@ export function ProductOptionManagerDialog({
   >({});
   const [bulkVariantStockQuantity, setBulkVariantStockQuantity] = useState<number>(0);
   const [isSubmittingVariantBulk, setIsSubmittingVariantBulk] = useState(false);
+  const [variantStockEdits, setVariantStockEdits] = useState<Record<string, number>>({});
+  const [variantStatusEdits, setVariantStatusEdits] = useState<Record<string, string>>({});
   const [cartesianSelectionsByGroup, setCartesianSelectionsByGroup] = useState<
     Record<string, Record<string, boolean>>
   >({});
@@ -131,6 +126,8 @@ export function ProductOptionManagerDialog({
     setVariantSelectionsByGroup({});
     setVariantStockQuantity(0);
     setBulkVariantStockQuantity(0);
+    setVariantStockEdits({});
+    setVariantStatusEdits({});
     setCartesianSelectionsByGroup({});
     setRequired(true);
     setVariants([]);
@@ -219,7 +216,8 @@ export function ProductOptionManagerDialog({
     (item) => item.selected
   ).length;
   const isDraftProduct = product?.status === "DRAFT";
-  const canAddOptionValues = product?.status === "DRAFT" || product?.status === "ACTIVE";
+  const canAddOptionValues = product?.status !== "DELETED";
+  const canAddVariants = product?.status !== "DELETED";
   const orderedGroups = useMemo(() => {
     const map = new Map((detail?.optionGroups ?? []).map((g) => [g.productOptionGroupId, g]));
     const inOrder = orderedGroupIds
@@ -334,6 +332,12 @@ export function ProductOptionManagerDialog({
         .join(" / ")
     );
   }, [cartesianCombinationsForCreate, optionValueLabelByProductOptionValueId]);
+  const visibleVariants = useMemo(
+    () => variants.filter((variant) => variant.status !== "DELETED"),
+    [variants]
+  );
+
+  const editableVariantStatuses = ["ACTIVE", "INACTIVE", "OUT_OF_STOCK"];
 
   const onToggleNewGroupValue = (optionValueId: string, checked: boolean) => {
     setNewGroupSelection((prev) => ({
@@ -367,6 +371,30 @@ export function ProductOptionManagerDialog({
         ...patch,
       },
     }));
+  };
+
+  const handleSelectGlobalGroup = (value: string) => {
+    setSelectedGlobalGroupId(value);
+    setNewGroupSelection({});
+  };
+
+  const handleSelectProductOptionGroup = (value: string) => {
+    setSelectedProductOptionGroupId(value);
+    setExistingGroupSelection({});
+  };
+
+  const handleChangeNewGroupSelectionField = (
+    optionValueId: string,
+    patch: Partial<OptionSelectionConfig>
+  ) => {
+    onChangeSelectionField(setNewGroupSelection, optionValueId, patch);
+  };
+
+  const handleChangeExistingGroupSelectionField = (
+    optionValueId: string,
+    patch: Partial<OptionSelectionConfig>
+  ) => {
+    onChangeSelectionField(setExistingGroupSelection, optionValueId, patch);
   };
 
   const handleAddGroup = async () => {
@@ -563,7 +591,7 @@ export function ProductOptionManagerDialog({
   };
 
   const handleAddVariant = async () => {
-    if (!product || !isDraftProduct) return;
+    if (!product || !canAddVariants) return;
 
     const selectedProductOptionValueIds = Object.values(variantSelectionsByGroup).filter(
       Boolean
@@ -622,7 +650,7 @@ export function ProductOptionManagerDialog({
   };
 
   const handleAddVariantCartesian = async () => {
-    if (!product || !isDraftProduct) return;
+    if (!product || !canAddVariants) return;
     if (missingRequiredGroupsForCartesian.length > 0) {
       toast({
         variant: "destructive",
@@ -674,6 +702,137 @@ export function ProductOptionManagerDialog({
     router.refresh();
   };
 
+  const handleUpdateVariant = async (variantId: string) => {
+    if (!product) return;
+    const variant = variants.find((v) => v.productVariantId === variantId);
+    if (!variant) return;
+
+    const stockQuantity = variantStockEdits[variantId] ?? variant.stockQuantity;
+    const status = variantStatusEdits[variantId] ?? variant.status;
+
+    setIsUpdatingVariantId(variantId);
+    const result = await updateProductVariant(product.id, variantId, {
+      stockQuantity,
+      status,
+    });
+    setIsUpdatingVariantId(null);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to update variant",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Variant updated",
+      description: "Stock and status were updated.",
+    });
+    await refreshData();
+    router.refresh();
+  };
+
+  const handleDeleteVariant = async (variantId: string) => {
+    if (!product) return;
+    if (!window.confirm("This variant will be soft-deleted. Continue?")) return;
+
+    setIsDeletingVariantId(variantId);
+    const result = await deleteProductVariant(product.id, variantId);
+    setIsDeletingVariantId(null);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to delete variant",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: "Variant deleted",
+      description: "The variant was soft-deleted.",
+    });
+    await refreshData();
+    router.refresh();
+  };
+
+  const optionGroupsTabProps: OptionGroupsTabProps = {
+    isLoading,
+    detail,
+    orderedGroups,
+    globalOptionGroups,
+    isDraftProduct,
+    isReordering,
+    isDeletingGroupId,
+    isDeletingValueId,
+    selectedGlobalGroupId,
+    globalGroupsForCreate,
+    required,
+    selectedGlobalGroup,
+    selectedCountForNewGroup,
+    newGroupSelection,
+    isSubmittingGroup,
+    selectedProductOptionGroupId,
+    selectedLocalGroup,
+    availableOptionValuesForLocal,
+    selectedCountForExisting,
+    existingGroupSelection,
+    canAddOptionValues,
+    isSubmittingValues,
+    setDraggingGroupId,
+    setRequired,
+    onDragOverGroup: handleDragOverGroup,
+    onDeleteOptionGroup: handleDeleteOptionGroup,
+    onDeleteOptionValue: handleDeleteOptionValue,
+    onSaveGroupOrder: handleSaveGroupOrder,
+    onSelectGlobalGroup: handleSelectGlobalGroup,
+    onToggleNewGroupValue,
+    onChangeNewGroupSelectionField: handleChangeNewGroupSelectionField,
+    onAddGroup: handleAddGroup,
+    onSelectProductOptionGroup: handleSelectProductOptionGroup,
+    onToggleExistingGroupValue,
+    onChangeExistingGroupSelectionField: handleChangeExistingGroupSelectionField,
+    onAddValuesToGroup: handleAddValuesToGroup,
+  };
+
+  const variantsTabProps: VariantsTabProps = {
+    isDraftProduct,
+    variantGroups,
+    variantSelectionsByGroup,
+    optionValueLabelByProductOptionValueId,
+    variantStockQuantity,
+    canAddVariants,
+    isSubmittingVariant,
+    cartesianSelectionsByGroup,
+    missingRequiredGroupsForCartesian,
+    bulkVariantStockQuantity,
+    rawCartesianCombinationCount,
+    cartesianCombinationsForCreate,
+    skippedExistingCombinationCount,
+    cartesianPreviewRows,
+    isSubmittingVariantBulk,
+    isVariantsLoading,
+    visibleVariants,
+    variantStockEdits,
+    variantStatusEdits,
+    editableVariantStatuses,
+    isUpdatingVariantId,
+    isDeletingVariantId,
+    setVariantSelectionsByGroup,
+    setVariantStockQuantity,
+    toggleCartesianSelection,
+    setBulkVariantStockQuantity,
+    onAddVariant: handleAddVariant,
+    onAddVariantCartesian: handleAddVariantCartesian,
+    setVariantStockEdits,
+    setVariantStatusEdits,
+    onUpdateVariant: handleUpdateVariant,
+    onDeleteVariant: handleDeleteVariant,
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
@@ -688,7 +847,7 @@ export function ProductOptionManagerDialog({
         {!isDraftProduct ? (
           <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700">
             Option group add/delete and reordering are available only when the product is DRAFT.
-            Adding option values to an existing group is available in DRAFT and ACTIVE.
+            Adding option values and variants is available for all non-DELETED product statuses.
           </div>
         ) : null}
 
@@ -698,572 +857,9 @@ export function ProductOptionManagerDialog({
             <TabsTrigger value="variants">Variants</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="optionGroups">
-            <div className="space-y-6">
-              <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Currently Linked Option Groups</h3>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={!isDraftProduct || isReordering || orderedGroups.length < 2}
-                onClick={handleSaveGroupOrder}
-              >
-                {isReordering ? "Saving Order..." : "Save Group Order"}
-              </Button>
-            </div>
-            {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
-            ) : detail?.optionGroups.length ? (
-              <div className="space-y-3">
-                {orderedGroups.map((group, index) => {
-                  // UI 표시를 위해 원본 글로벌 그룹 찾기
-                  const globalGroup = globalOptionGroups.find(
-                    (g) => g.id === group.optionGroupId
-                  );
+          <OptionGroupsTab {...optionGroupsTabProps} />
 
-                  return (
-                    <div
-                      key={group.productOptionGroupId}
-                      draggable={isDraftProduct}
-                      onDragStart={() => setDraggingGroupId(group.productOptionGroupId)}
-                      onDragEnd={() => setDraggingGroupId(null)}
-                      onDragOver={(e) => handleDragOverGroup(e, group.productOptionGroupId)}
-                      className="rounded-md border p-3"
-                    >
-                      <div className="flex items-center gap-2">
-                        {/* 글로벌 사전의 이름으로 노출 */}
-                        <p className="text-sm font-medium">
-                          {globalGroup ? `${globalGroup.displayName} (${globalGroup.name})` : group.optionGroupId}
-                        </p>
-                        <Badge variant="outline">step {index + 1}</Badge>
-                        <Badge variant={group.required ? "default" : "secondary"}>
-                          {group.required ? "REQUIRED" : "OPTIONAL"}
-                        </Badge>
-                        <Badge variant={getOptionStatusBadgeVariant(group.status)}>
-                          {group.status}
-                        </Badge>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="destructive"
-                            disabled={
-                              !isDraftProduct ||
-                              group.status === "DELETED" ||
-                              isDeletingGroupId === group.productOptionGroupId
-                            }
-                            onClick={() => handleDeleteOptionGroup(group.productOptionGroupId)}
-                          >
-                            {isDeletingGroupId === group.productOptionGroupId
-                              ? "Deleting..."
-                              : "Delete Group"}
-                          </Button>
-                      </div>
-                      
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {group.optionValues.map((value) => {
-                          // 글로벌 사전과 매칭하여 진짜 이름과 가격 델타 표시
-                          const globalValue = globalGroup?.optionValues.find(
-                            (v) => v.id === value.optionValueId
-                          );
-                          const displayLabel = globalValue
-                            ? `${globalValue.displayName} (${globalValue.value})`
-                            : value.optionValueId;
-                          
-                          // 가격 델타 포맷팅 (달러 기준)
-                          const priceDeltaText = value.priceDelta > 0 
-                            ? ` (+$${value.priceDelta.toFixed(2)})` 
-                            : "";
-
-                          return (
-                            <div key={value.productOptionValueId} className="inline-flex items-center gap-1">
-                              <Badge variant={getOptionStatusBadgeVariant(value.status)}>
-                                {displayLabel}
-                                {priceDeltaText} - {value.status}
-                              </Badge>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={
-                                  !isDraftProduct ||
-                                  value.status === "DELETED" ||
-                                  isDeletingValueId === value.productOptionValueId
-                                }
-                                onClick={() => handleDeleteOptionValue(value.productOptionValueId)}
-                              >
-                                {isDeletingValueId === value.productOptionValueId
-                                  ? "Deleting..."
-                                  : "Delete"}
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No option groups are linked yet.
-              </p>
-            )}
-              </section>
-
-              <section className="space-y-3 rounded-md border p-4">
-            <h3 className="text-sm font-semibold">Add Option Group</h3>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Global Option Group</Label>
-                <Select
-                  value={selectedGlobalGroupId}
-                  onValueChange={(value) => {
-                    setSelectedGlobalGroupId(value);
-                    setNewGroupSelection({});
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select an option group" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {globalGroupsForCreate.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.displayName} ({group.name})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end gap-2 pb-2">
-                <Checkbox
-                  id="required-toggle"
-                  checked={required}
-                  onCheckedChange={(checked) => setRequired(Boolean(checked))}
-                />
-                <Label htmlFor="required-toggle">Required option group</Label>
-              </div>
-            </div>
-
-            {selectedGlobalGroup ? (
-              <div className="space-y-2 rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">
-                  Selected option values: {selectedCountForNewGroup}
-                </p>
-                {selectedGlobalGroup.optionValues
-                  .filter((value) => value.status !== "DELETED")
-                  .map((value) => {
-                    const state = newGroupSelection[value.id] ?? emptySelection();
-                    return (
-                      <div
-                        key={value.id}
-                        className="grid items-center gap-2 rounded-md border p-2 md:grid-cols-5"
-                      >
-                        <div className="col-span-2 flex items-center gap-2">
-                          <Checkbox
-                            checked={state.selected}
-                            onCheckedChange={(checked) =>
-                              onToggleNewGroupValue(value.id, Boolean(checked))
-                            }
-                          />
-                          <span className="text-sm">
-                            {value.displayName} ({value.value})
-                          </span>
-                        </div>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          disabled={!state.selected}
-                          value={state.priceDelta}
-                          onChange={(e) =>
-                            onChangeSelectionField(setNewGroupSelection, value.id, {
-                              priceDelta: Number(e.target.value || 0),
-                            })
-                          }
-                          placeholder="Price Delta"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            checked={state.isDefault}
-                            disabled={!state.selected}
-                            onCheckedChange={(checked) =>
-                              onChangeSelectionField(setNewGroupSelection, value.id, {
-                                isDefault: Boolean(checked),
-                              })
-                            }
-                          />
-                          <span className="text-xs">Default</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            ) : null}
-
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                disabled={!isDraftProduct || !selectedGlobalGroupId || isSubmittingGroup}
-                onClick={handleAddGroup}
-              >
-                {isSubmittingGroup ? "Adding..." : "Add Option Group"}
-              </Button>
-            </div>
-          </section>
-
-          <section className="space-y-3 rounded-md border p-4">
-            <h3 className="text-sm font-semibold">Add Option Values to Existing Group</h3>
-            <div className="space-y-2">
-              <Label>Product Option Group</Label>
-              <Select
-                value={selectedProductOptionGroupId}
-                onValueChange={(value) => {
-                  setSelectedProductOptionGroupId(value);
-                  setExistingGroupSelection({});
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a product option group" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(detail?.optionGroups ?? []).map((group) => {
-                    const gGroup = globalOptionGroups.find(g => g.id === group.optionGroupId);
-                    const label = gGroup ? `${gGroup.displayName} (step ${group.stepOrder})` : `step ${group.stepOrder}`;
-                    
-                    return (
-                      <SelectItem
-                        key={group.productOptionGroupId}
-                        value={group.productOptionGroupId}
-                      >
-                        {label}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {selectedLocalGroup ? (
-              <div className="space-y-2 rounded-md border p-3">
-                <p className="text-xs text-muted-foreground">
-                  Available option values: {availableOptionValuesForLocal.length} / Selected:{" "}
-                  {selectedCountForExisting}
-                </p>
-                {availableOptionValuesForLocal.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No option values are available to add.
-                  </p>
-                ) : (
-                  availableOptionValuesForLocal.map((value) => {
-                    const state = existingGroupSelection[value.id] ?? emptySelection();
-                    return (
-                      <div
-                        key={value.id}
-                        className="grid items-center gap-2 rounded-md border p-2 md:grid-cols-5"
-                      >
-                        <div className="col-span-2 flex items-center gap-2">
-                          <Checkbox
-                            checked={state.selected}
-                            onCheckedChange={(checked) =>
-                              onToggleExistingGroupValue(value.id, Boolean(checked))
-                            }
-                          />
-                          <span className="text-sm">
-                            {value.displayName} ({value.value})
-                          </span>
-                        </div>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          disabled={!state.selected}
-                          value={state.priceDelta}
-                          onChange={(e) =>
-                            onChangeSelectionField(setExistingGroupSelection, value.id, {
-                              priceDelta: Number(e.target.value || 0),
-                            })
-                          }
-                          placeholder="Price Delta"
-                        />
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            checked={state.isDefault}
-                            disabled={!state.selected}
-                            onCheckedChange={(checked) =>
-                              onChangeSelectionField(setExistingGroupSelection, value.id, {
-                                isDefault: Boolean(checked),
-                              })
-                            }
-                          />
-                          <span className="text-xs">Default</span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            ) : null}
-
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                disabled={!canAddOptionValues || !selectedProductOptionGroupId || isSubmittingValues}
-                onClick={handleAddValuesToGroup}
-              >
-                {isSubmittingValues ? "Adding..." : "Add Option Values"}
-              </Button>
-            </div>
-          </section>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="variants">
-            <div className="space-y-6 p-1">
-              <section className="space-y-3 rounded-md border p-4">
-                <h3 className="text-sm font-semibold">Create Variant</h3>
-                {!isDraftProduct ? (
-                  <p className="text-xs text-muted-foreground">
-                    Variants can be created only when the product is DRAFT.
-                  </p>
-                ) : null}
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  {variantGroups.map(({ group, globalGroup, optionValues }) => (
-                    <div key={group.productOptionGroupId} className="space-y-2">
-                      <Label>
-                        {globalGroup
-                          ? `${globalGroup.displayName} (${globalGroup.name})`
-                          : group.optionGroupId}
-                      </Label>
-                      <Select
-                        value={variantSelectionsByGroup[group.productOptionGroupId] ?? ""}
-                        onValueChange={(value) =>
-                          setVariantSelectionsByGroup((prev) => ({
-                            ...prev,
-                            [group.productOptionGroupId]: value,
-                          }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select option value" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {optionValues.map((value) => (
-                            <SelectItem
-                              key={value.productOptionValueId}
-                              value={value.productOptionValueId}
-                            >
-                              {optionValueLabelByProductOptionValueId.get(
-                                value.productOptionValueId
-                              ) ?? value.optionValueId}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="max-w-xs space-y-2">
-                  <Label>Stock Quantity</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={variantStockQuantity}
-                    onChange={(e) => setVariantStockQuantity(Number(e.target.value || 0))}
-                    placeholder="0"
-                  />
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    disabled={!isDraftProduct || isSubmittingVariant}
-                    onClick={handleAddVariant}
-                  >
-                    {isSubmittingVariant ? "Adding..." : "Add Variant"}
-                  </Button>
-                </div>
-              </section>
-
-              <section className="space-y-3 rounded-md border p-4">
-                <h3 className="text-sm font-semibold">
-                  Auto Generate Variants (Cartesian Product)
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Select multiple values per group and generate all combinations at
-                  once.
-                </p>
-
-                <div className="space-y-3">
-                  {variantGroups.map(({ group, globalGroup, optionValues }) => (
-                    <div
-                      key={`cartesian-${group.productOptionGroupId}`}
-                      className="space-y-2 rounded-md border p-3"
-                    >
-                      <p className="text-sm font-medium">
-                        {globalGroup
-                          ? `${globalGroup.displayName} (${globalGroup.name})`
-                          : group.optionGroupId}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {optionValues.map((value) => {
-                          const checked = Boolean(
-                            cartesianSelectionsByGroup[group.productOptionGroupId]?.[
-                              value.productOptionValueId
-                            ]
-                          );
-                          return (
-                            <label
-                              key={value.productOptionValueId}
-                              className="inline-flex items-center gap-2 rounded border px-2 py-1 text-xs"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(next) =>
-                                  toggleCartesianSelection(
-                                    group.productOptionGroupId,
-                                    value.productOptionValueId,
-                                    Boolean(next)
-                                  )
-                                }
-                              />
-                              <span>
-                                {optionValueLabelByProductOptionValueId.get(
-                                  value.productOptionValueId
-                                ) ?? value.optionValueId}
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {missingRequiredGroupsForCartesian.length > 0 ? (
-                  <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700">
-                    Required group selection missing: {missingRequiredGroupsForCartesian.join(", ")}
-                  </div>
-                ) : null}
-
-                <div className="max-w-xs space-y-2">
-                  <Label>Stock Quantity for Generated Variants</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={bulkVariantStockQuantity}
-                    onChange={(e) =>
-                      setBulkVariantStockQuantity(Number(e.target.value || 0))
-                    }
-                    placeholder="0"
-                  />
-                </div>
-
-                <div className="rounded-md border bg-muted/30 p-3 text-xs">
-                  <p>
-                    Raw combinations: {rawCartesianCombinationCount}
-                    {rawCartesianCombinationCount > MAX_CARTESIAN_VARIANT_BATCH_SIZE
-                      ? ` (only first ${MAX_CARTESIAN_VARIANT_BATCH_SIZE} are processed)`
-                      : ""}
-                  </p>
-                  <p>
-                    New combinations to create: {cartesianCombinationsForCreate.length}
-                  </p>
-                  <p>Skipped existing active combinations: {skippedExistingCombinationCount}</p>
-                </div>
-
-                <div className="rounded-md border p-3 text-xs">
-                  <p className="mb-2 font-medium">Combination preview (up to 10)</p>
-                  {cartesianPreviewRows.length > 0 ? (
-                    <div className="space-y-1">
-                      {cartesianPreviewRows.map((row, index) => (
-                        <p key={`${row}-${index}`} className="text-muted-foreground">
-                          {index + 1}. {row}
-                        </p>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-muted-foreground">No combinations to preview.</p>
-                  )}
-                </div>
-
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    disabled={
-                      !isDraftProduct ||
-                      isSubmittingVariantBulk ||
-                      missingRequiredGroupsForCartesian.length > 0
-                    }
-                    onClick={handleAddVariantCartesian}
-                  >
-                    {isSubmittingVariantBulk
-                      ? "Generating..."
-                      : "Generate Variants"}
-                  </Button>
-                </div>
-              </section>
-
-              <section className="space-y-3 rounded-md border p-4">
-                <h3 className="text-sm font-semibold">Product Variants</h3>
-
-                {isVariantsLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading...</p>
-                ) : variants.length ? (
-                  <div className="space-y-3">
-                    {variants.map((variant) => {
-                      return (
-                        <div
-                          key={variant.productVariantId}
-                          className="rounded-md border p-3"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="space-y-0.5">
-                              <p className="text-sm font-medium">{variant.sku}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Stock: {variant.stockQuantity}
-                              </p>
-                            </div>
-                            <Badge
-                              variant={
-                                variant.status === "ACTIVE" ? "default" : "secondary"
-                              }
-                            >
-                              {variant.status}
-                            </Badge>
-                          </div>
-
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            Price: ${variant.calculatedPrice}
-                          </div>
-
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {variant.selectedProductOptionValueIds.length ? (
-                              variant.selectedProductOptionValueIds.map((id) => (
-                                <Badge key={id} variant="outline">
-                                  {optionValueLabelByProductOptionValueId.get(id) ??
-                                    id}
-                                </Badge>
-                              ))
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                No selected options
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No variants found.
-                  </p>
-                )}
-              </section>
-            </div>
-          </TabsContent>
+          <VariantsTab {...variantsTabProps} />
         </Tabs>
 
         <DialogFooter>
