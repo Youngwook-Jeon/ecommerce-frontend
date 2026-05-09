@@ -2,6 +2,11 @@
 
 import { fetchWrapper } from "../common/services/fetchWrapper";
 import { getErrorMessage } from "@/lib/utils";
+import type {
+  ProductImageCommitResponseVm,
+  ProductImagePresignResponseVm,
+  ReadProductImageVm,
+} from "@/types/productImage";
 
 // ----- 어드민용 제품 조회 API -----
 export interface AdminProductDtoVm {
@@ -37,6 +42,7 @@ export interface AdminProductDetailVm extends AdminProductDtoVm {
   createdAt: string;
   updatedAt: string;
   optionGroups: ProductOptionGroupVm[];
+  images?: ReadProductImageVm[];
 }
 
 export interface ProductVariantVm {
@@ -175,6 +181,41 @@ export interface CreateProductRequest {
   categoryId: number;
   conditionType: string;
   status: string;
+  /** When omitted, product-service uses a default placeholder until images are uploaded. */
+  mainImageUrl?: string;
+}
+
+export interface CreateProductResponseVm {
+  id: string;
+  name: string;
+  message: string;
+}
+
+export interface ProductImagePresignRequestBody {
+  fileName: string;
+  contentType: string;
+  contentLength: number;
+  role: "MAIN" | "GALLERY";
+  sortOrder: number;
+}
+
+export interface ProductImageCommitRequestBody {
+  objectKey: string;
+  contentType: string;
+  fileSize: number;
+  role: "MAIN" | "GALLERY";
+  sortOrder: number;
+}
+
+export interface ProductImageReorderRequestBody {
+  orderedImageIds: string[];
+}
+
+export interface ProductImageReorderResponseVm {
+  productId: string;
+  reorderedCount: number;
+  orderedImageIds: string[];
+  message?: string;
 }
 
 export interface UpdateProductRequest {
@@ -221,10 +262,11 @@ export interface UpdateProductVariantRequest {
 }
 
 export async function createProduct(data: CreateProductRequest) {
-  const requestBody = {
-    ...data,
-    mainImageUrl: "https://example.com/images/default-product.jpg",
-  };
+  const { status: _status, ...rest } = data;
+  const requestBody: Record<string, unknown> = { ...rest };
+  if (data.mainImageUrl != null && data.mainImageUrl !== "") {
+    requestBody.mainImageUrl = data.mainImageUrl;
+  }
 
   try {
     const response = await fetchWrapper.post(
@@ -232,16 +274,18 @@ export async function createProduct(data: CreateProductRequest) {
       requestBody
     );
 
-    const responseData = await response.json();
+    const responseData = (await response.json()) as CreateProductResponseVm & {
+      message?: string;
+    };
 
     if (!response.ok) {
       throw new Error(responseData.message || "Failed to create product.");
     }
 
-    return { success: true, data: responseData };
+    return { success: true as const, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in createProduct Server Action:", error);
-    return { success: false, message: getErrorMessage(error) };
+    return { success: false as const, message: getErrorMessage(error) };
   }
 }
 
@@ -249,15 +293,10 @@ export async function updateProduct(
   productId: string,
   data: UpdateProductRequest
 ) {
-  const requestBody = {
-    ...data,
-    mainImageUrl: "https://example.com/images/default-product.jpg",
-  };
-
   try {
     const response = await fetchWrapper.put(
       `api/v1/product_service/admin/products/${productId}`,
-      requestBody
+      data
     );
 
     const responseData = await response.json();
@@ -270,6 +309,88 @@ export async function updateProduct(
   } catch (error: unknown) {
     console.error("An error occurred in updateProduct Server Action:", error);
     return { success: false, message: getErrorMessage(error) };
+  }
+}
+
+export async function requestProductImageUploadUrl(
+  productId: string,
+  payload: ProductImagePresignRequestBody
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `api/v1/product_service/admin/products/${productId}/images/presign-upload`,
+      payload
+    );
+    const responseData = (await response.json()) as ProductImagePresignResponseVm & {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to request upload URL.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in requestProductImageUploadUrl:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function commitProductImage(
+  productId: string,
+  payload: ProductImageCommitRequestBody
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `api/v1/product_service/admin/products/${productId}/images/commit`,
+      payload
+    );
+    const responseData = (await response.json()) as ProductImageCommitResponseVm & {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to commit uploaded image.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in commitProductImage:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function deleteProductImage(productId: string, imageId: string) {
+  try {
+    const response = await fetchWrapper.del(
+      `api/v1/product_service/admin/products/${productId}/images/${imageId}`
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Failed to delete product image.");
+    }
+    return { success: true as const };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteProductImage:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function reorderProductImages(
+  productId: string,
+  payload: ProductImageReorderRequestBody
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `api/v1/product_service/admin/products/${productId}/images/reorder`,
+      payload
+    );
+    const responseData = (await response.json()) as ProductImageReorderResponseVm & {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to reorder product images.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in reorderProductImages:", error);
+    return { success: false as const, message: getErrorMessage(error) };
   }
 }
 

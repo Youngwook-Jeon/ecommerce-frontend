@@ -1,15 +1,20 @@
+import type { ReadProductImageVm } from "@/types/productImage";
+
+export type { ReadProductImageVm };
+
 export interface AdminProductDetailVm {
     id: string;
     categoryId: number | null;
     name: string;
     description: string;
     brand: string;
-    mainImageUrl: string;
+    mainImageUrl: string | null;
     basePrice: number;
     status: string;
     conditionType: string;
     createdAt: string;
     updatedAt: string;
+    images?: ReadProductImageVm[];
 }
 
 export async function fetchAdminProductDetail(

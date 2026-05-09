@@ -27,11 +27,10 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  UpdateProductRequest,
-  updateProduct,
-} from "@/services/productService";
+import { UpdateProductRequest, updateProduct } from "@/services/productService";
 import { AdminProductDetailVm, fetchAdminProductDetail } from "@/services/adminProductClient";
+import type { ReadProductImageVm } from "@/types/productImage";
+import { ProductImageUploader } from "./ProductImageUploader";
 
 const UpdateProductSchema = z.object({
   name: z
@@ -85,6 +84,15 @@ export function UpdateProductForm({
   });
 
   const { isSubmitting } = form.formState;
+
+  const sortedImages: ReadProductImageVm[] = [...(detail?.images ?? [])].sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+
+  async function reloadProductDetail(targetProductId: string) {
+    const data = await fetchAdminProductDetail(targetProductId);
+    setDetail(data);
+  }
 
   useEffect(() => {
     if (!isOpen || !productId) {
@@ -311,11 +319,17 @@ export function UpdateProductForm({
                 </FormControl>
               </FormItem>
             </div>
-
-            <p className="text-xs text-muted-foreground">
-              Main image URL will be set to{" "}
-              <code>https://example.com/images/default-product.jpg</code>.
-            </p>
+            {productId ? (
+              <ProductImageUploader
+                productId={productId}
+                images={sortedImages}
+                disabled={isDisabled}
+                onImagesUpdated={async () => {
+                  await reloadProductDetail(productId);
+                  router.refresh();
+                }}
+              />
+            ) : null}
 
             <DialogFooter>
               <DialogClose asChild>
