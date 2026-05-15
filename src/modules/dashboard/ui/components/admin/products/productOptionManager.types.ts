@@ -20,6 +20,7 @@ export interface VariantGroupItem {
 }
 
 export interface OptionGroupsTabProps {
+  productId: string | null;
   isLoading: boolean;
   detail: AdminProductDetailVm | null;
   orderedGroups: ProductOptionGroupVm[];
@@ -42,6 +43,7 @@ export interface OptionGroupsTabProps {
   existingGroupSelection: Record<string, OptionSelectionConfig>;
   canAddOptionValues: boolean;
   isSubmittingValues: boolean;
+  isUpdatingVisualGroupId: string | null;
   setDraggingGroupId: Dispatch<SetStateAction<string | null>>;
   setRequired: Dispatch<SetStateAction<boolean>>;
   onDragOverGroup: (e: DragEvent<HTMLDivElement>, targetId: string) => void;
@@ -62,6 +64,8 @@ export interface OptionGroupsTabProps {
     patch: Partial<OptionSelectionConfig>
   ) => void;
   onAddValuesToGroup: () => void;
+  onSetVisualGroup: (productOptionGroupId: string, drivesVariantImages: boolean) => void;
+  onManageOptionValueImages: (productOptionValueId: string, label: string) => void;
 }
 
 export interface VariantsTabProps {

@@ -22,9 +22,13 @@ import {
   validateImageFile,
 } from "@/lib/productImageUpload";
 import {
+  commitOptionValueImage,
   commitProductImage,
+  deleteOptionValueImage,
   deleteProductImage,
+  reorderOptionValueImages,
   reorderProductImages,
+  requestOptionValueImageUploadUrl,
   requestProductImageUploadUrl,
 } from "@/services/productService";
 import type { ReadProductImageVm } from "@/types/productImage";
@@ -41,6 +45,8 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 export interface ProductImageUploaderProps {
   productId: string;
+  /** When set, uploads target this product option value instead of the product. */
+  productOptionValueId?: string;
   /** Expected sorted by `sortOrder` ascending; will be re-sorted defensively. */
   images: ReadProductImageVm[];
   onImagesUpdated: () => Promise<void>;
@@ -66,6 +72,7 @@ function summarizeRejections(rejections: FileRejection[]): string {
 
 export function ProductImageUploader({
   productId,
+  productOptionValueId,
   images,
   onImagesUpdated,
   disabled = false,
@@ -124,6 +131,8 @@ export function ProductImageUploader({
 
   const isBatchBusy = batchPhase !== "idle";
   const dropDisabled = disabled || isBatchBusy;
+
+  const isOptionValueScope = productOptionValueId != null && productOptionValueId !== "";
 
   const runUploadBatch = useCallback(
     async (acceptedFiles: File[]) => {
@@ -196,13 +205,21 @@ export function ProductImageUploader({
             baseSort === 0 && batchIdx === 0 ? "MAIN" : "GALLERY";
           const safeName = toSafeUploadFileName(file.name);
 
-          const presignResult = await requestProductImageUploadUrl(productId, {
-            fileName: safeName,
-            contentType: file.type,
-            contentLength: file.size,
-            role,
-            sortOrder,
-          });
+          const presignResult = isOptionValueScope
+            ? await requestOptionValueImageUploadUrl(productId, productOptionValueId, {
+                fileName: safeName,
+                contentType: file.type,
+                contentLength: file.size,
+                role,
+                sortOrder,
+              })
+            : await requestProductImageUploadUrl(productId, {
+                fileName: safeName,
+                contentType: file.type,
+                contentLength: file.size,
+                role,
+                sortOrder,
+              });
           if (!presignResult.success) {
             throw new Error(presignResult.message);
           }
@@ -217,13 +234,21 @@ export function ProductImageUploader({
             file
           );
 
-          const commitResult = await commitProductImage(productId, {
-            objectKey: presignResult.data.objectKey,
-            contentType: file.type,
-            fileSize: file.size,
-            role,
-            sortOrder,
-          });
+          const commitResult = isOptionValueScope
+            ? await commitOptionValueImage(productId, productOptionValueId, {
+                objectKey: presignResult.data.objectKey,
+                contentType: file.type,
+                fileSize: file.size,
+                role,
+                sortOrder,
+              })
+            : await commitProductImage(productId, {
+                objectKey: presignResult.data.objectKey,
+                contentType: file.type,
+                fileSize: file.size,
+                role,
+                sortOrder,
+              });
           if (!commitResult.success) {
             throw new Error(commitResult.message);
           }
@@ -266,6 +291,8 @@ export function ProductImageUploader({
     },
     [
       productId,
+      productOptionValueId,
+      isOptionValueScope,
       sortedImages.length,
       maxConcurrentCompression,
       maxConcurrentUploads,
@@ -319,9 +346,13 @@ export function ProductImageUploader({
   async function onSaveImageOrder() {
     if (!orderDirty || displayImages.length < 2) return;
     setIsSavingImageOrder(true);
-    const result = await reorderProductImages(productId, {
-      orderedImageIds: displayImages.map((x) => x.id),
-    });
+    const result = isOptionValueScope
+      ? await reorderOptionValueImages(productId, productOptionValueId, {
+          orderedImageIds: displayImages.map((x) => x.id),
+        })
+      : await reorderProductImages(productId, {
+          orderedImageIds: displayImages.map((x) => x.id),
+        });
     if (!result.success) {
       toast({ variant: "destructive", title: "Reorder failed", description: result.message });
       setIsSavingImageOrder(false);
@@ -337,7 +368,9 @@ export function ProductImageUploader({
 
   async function onDeleteImage(imageId: string) {
     setDeletingImageId(imageId);
-    const result = await deleteProductImage(productId, imageId);
+    const result = isOptionValueScope
+      ? await deleteOptionValueImage(productId, productOptionValueId, imageId)
+      : await deleteProductImage(productId, imageId);
     if (!result.success) {
       toast({ variant: "destructive", title: "Delete failed", description: result.message });
       setDeletingImageId(null);

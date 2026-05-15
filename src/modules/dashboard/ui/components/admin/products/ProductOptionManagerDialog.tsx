@@ -20,8 +20,10 @@ import {
   getAdminProductVariants,
   reorderProductOptionGroups,
   ProductVariantVm,
+  updateProductOptionGroupVisual,
   updateProductVariant,
 } from "@/services/productService";
+import { OptionValueImagesDialog } from "./OptionValueImagesDialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -74,8 +76,13 @@ export function ProductOptionManagerDialog({
   const [isUpdatingVariantId, setIsUpdatingVariantId] = useState<string | null>(null);
   const [isDeletingVariantId, setIsDeletingVariantId] = useState<string | null>(null);
   const [isReordering, setIsReordering] = useState(false);
+  const [isUpdatingVisualGroupId, setIsUpdatingVisualGroupId] = useState<string | null>(null);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [orderedGroupIds, setOrderedGroupIds] = useState<string[]>([]);
+  const [optionValueImagesTarget, setOptionValueImagesTarget] = useState<{
+    productOptionValueId: string;
+    label: string;
+  } | null>(null);
 
   const [selectedGlobalGroupId, setSelectedGlobalGroupId] = useState<string>("");
   const [required, setRequired] = useState(true);
@@ -217,6 +224,17 @@ export function ProductOptionManagerDialog({
   ).length;
   const isDraftProduct = product?.status === "DRAFT";
   const canAddOptionValues = product?.status !== "DELETED";
+
+  const optionValueImagesForDialog = useMemo(() => {
+    if (!detail || !optionValueImagesTarget) return [];
+    for (const group of detail.optionGroups) {
+      const value = group.optionValues.find(
+        (v) => v.productOptionValueId === optionValueImagesTarget.productOptionValueId
+      );
+      if (value) return value.images ?? [];
+    }
+    return [];
+  }, [detail, optionValueImagesTarget]);
   const canAddVariants = product?.status !== "DELETED";
   const orderedGroups = useMemo(() => {
     const map = new Map((detail?.optionGroups ?? []).map((g) => [g.productOptionGroupId, g]));
@@ -734,6 +752,46 @@ export function ProductOptionManagerDialog({
     router.refresh();
   };
 
+  const handleSetVisualGroup = async (
+    productOptionGroupId: string,
+    drivesVariantImages: boolean
+  ) => {
+    if (!product) return;
+
+    setIsUpdatingVisualGroupId(productOptionGroupId);
+    const result = await updateProductOptionGroupVisual(
+      product.id,
+      productOptionGroupId,
+      drivesVariantImages
+    );
+    setIsUpdatingVisualGroupId(null);
+
+    if (!result.success) {
+      toast({
+        variant: "destructive",
+        title: "Failed to update visual group",
+        description: result.message,
+      });
+      return;
+    }
+
+    toast({
+      title: drivesVariantImages ? "Visual group set" : "Visual group cleared",
+      description: drivesVariantImages
+        ? "Variant thumbnails will use images from this group's option values."
+        : "Variant thumbnails will fall back to the product image.",
+    });
+    await refreshData();
+    router.refresh();
+  };
+
+  const handleManageOptionValueImages = (
+    productOptionValueId: string,
+    label: string
+  ) => {
+    setOptionValueImagesTarget({ productOptionValueId, label });
+  };
+
   const handleDeleteVariant = async (variantId: string) => {
     if (!product) return;
     if (!window.confirm("This variant will be soft-deleted. Continue?")) return;
@@ -760,6 +818,7 @@ export function ProductOptionManagerDialog({
   };
 
   const optionGroupsTabProps: OptionGroupsTabProps = {
+    productId: product?.id ?? null,
     isLoading,
     detail,
     orderedGroups,
@@ -782,6 +841,7 @@ export function ProductOptionManagerDialog({
     existingGroupSelection,
     canAddOptionValues,
     isSubmittingValues,
+    isUpdatingVisualGroupId,
     setDraggingGroupId,
     setRequired,
     onDragOverGroup: handleDragOverGroup,
@@ -796,6 +856,8 @@ export function ProductOptionManagerDialog({
     onToggleExistingGroupValue,
     onChangeExistingGroupSelectionField: handleChangeExistingGroupSelectionField,
     onAddValuesToGroup: handleAddValuesToGroup,
+    onSetVisualGroup: handleSetVisualGroup,
+    onManageOptionValueImages: handleManageOptionValueImages,
   };
 
   const variantsTabProps: VariantsTabProps = {
@@ -834,7 +896,8 @@ export function ProductOptionManagerDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>Manage Product Options</DialogTitle>
@@ -869,5 +932,19 @@ export function ProductOptionManagerDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+      {product ? (
+        <OptionValueImagesDialog
+          productId={product.id}
+          productOptionValueId={optionValueImagesTarget?.productOptionValueId ?? null}
+          label={optionValueImagesTarget?.label ?? ""}
+          images={optionValueImagesForDialog}
+          isOpen={optionValueImagesTarget !== null}
+          onClose={() => setOptionValueImagesTarget(null)}
+          onImagesUpdated={refreshData}
+          disabled={!canAddOptionValues}
+        />
+      ) : null}
+    </>
   );
 }

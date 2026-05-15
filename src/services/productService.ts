@@ -26,6 +26,7 @@ export interface ProductOptionValueVm {
   priceDelta: number;
   isDefault: boolean;
   status: string;
+  images?: ReadProductImageVm[];
 }
 
 export interface ProductOptionGroupVm {
@@ -33,6 +34,7 @@ export interface ProductOptionGroupVm {
   optionGroupId: string;
   stepOrder: number;
   required: boolean;
+  drivesVariantImages: boolean;
   status: string;
   optionValues: ProductOptionValueVm[];
 }
@@ -51,6 +53,7 @@ export interface ProductVariantVm {
   stockQuantity: number;
   status: string;
   calculatedPrice: number;
+  mainImageUrl: string | null;
   selectedProductOptionValueIds: string[];
 }
 
@@ -390,6 +393,120 @@ export async function reorderProductImages(
     return { success: true as const, data: responseData };
   } catch (error: unknown) {
     console.error("An error occurred in reorderProductImages:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+function optionValueImagesBase(productId: string, productOptionValueId: string) {
+  return `api/v1/product_service/admin/products/${productId}/option-values/${productOptionValueId}/images`;
+}
+
+export async function requestOptionValueImageUploadUrl(
+  productId: string,
+  productOptionValueId: string,
+  payload: ProductImagePresignRequestBody
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `${optionValueImagesBase(productId, productOptionValueId)}/presign-upload`,
+      payload
+    );
+    const responseData = (await response.json()) as ProductImagePresignResponseVm & {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to request upload URL.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in requestOptionValueImageUploadUrl:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function commitOptionValueImage(
+  productId: string,
+  productOptionValueId: string,
+  payload: ProductImageCommitRequestBody
+) {
+  try {
+    const response = await fetchWrapper.post(
+      `${optionValueImagesBase(productId, productOptionValueId)}/commit`,
+      payload
+    );
+    const responseData = (await response.json()) as ProductImageCommitResponseVm & {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to commit uploaded image.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in commitOptionValueImage:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function deleteOptionValueImage(
+  productId: string,
+  productOptionValueId: string,
+  imageId: string
+) {
+  try {
+    const response = await fetchWrapper.del(
+      `${optionValueImagesBase(productId, productOptionValueId)}/${imageId}`
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || "Failed to delete option value image.");
+    }
+    return { success: true as const };
+  } catch (error: unknown) {
+    console.error("An error occurred in deleteOptionValueImage:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function reorderOptionValueImages(
+  productId: string,
+  productOptionValueId: string,
+  payload: ProductImageReorderRequestBody
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `${optionValueImagesBase(productId, productOptionValueId)}/reorder`,
+      payload
+    );
+    const responseData = (await response.json()) as ProductImageReorderResponseVm & {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to reorder option value images.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in reorderOptionValueImages:", error);
+    return { success: false as const, message: getErrorMessage(error) };
+  }
+}
+
+export async function updateProductOptionGroupVisual(
+  productId: string,
+  productOptionGroupId: string,
+  drivesVariantImages: boolean
+) {
+  try {
+    const response = await fetchWrapper.patch(
+      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/visual`,
+      { drivesVariantImages }
+    );
+    const responseData = await response.json();
+    if (!response.ok) {
+      throw new Error(responseData.message || "Failed to update visual option group.");
+    }
+    return { success: true as const, data: responseData };
+  } catch (error: unknown) {
+    console.error("An error occurred in updateProductOptionGroupVisual:", error);
     return { success: false as const, message: getErrorMessage(error) };
   }
 }

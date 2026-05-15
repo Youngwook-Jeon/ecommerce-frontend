@@ -23,6 +23,7 @@ const emptySelection = (): OptionSelectionConfig => ({
 });
 
 export function OptionGroupsTab({
+  productId,
   isLoading,
   detail,
   orderedGroups,
@@ -45,6 +46,7 @@ export function OptionGroupsTab({
   existingGroupSelection,
   canAddOptionValues,
   isSubmittingValues,
+  isUpdatingVisualGroupId,
   setDraggingGroupId,
   onDragOverGroup,
   onDeleteOptionGroup,
@@ -59,11 +61,17 @@ export function OptionGroupsTab({
   onToggleExistingGroupValue,
   onChangeExistingGroupSelectionField,
   onAddValuesToGroup,
+  onSetVisualGroup,
+  onManageOptionValueImages,
 }: OptionGroupsTabProps) {
   return (
     <TabsContent value="optionGroups">
       <div className="space-y-6">
         <section className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Mark one option group as the visual group to drive variant thumbnails from its option
+            value images. If a value has no images, variants fall back to the product common image.
+          </p>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold">Currently Linked Option Groups</h3>
             <Button
@@ -105,6 +113,31 @@ export function OptionGroupsTab({
                       <Badge variant={getOptionStatusBadgeVariant(group.status)}>
                         {group.status}
                       </Badge>
+                      {group.drivesVariantImages ? (
+                        <Badge variant="default">VISUAL</Badge>
+                      ) : null}
+                      <div className="ml-auto flex items-center gap-2">
+                        <Checkbox
+                          id={`visual-group-${group.productOptionGroupId}`}
+                          checked={group.drivesVariantImages}
+                          disabled={
+                            !canAddOptionValues ||
+                            group.status === "DELETED" ||
+                            isUpdatingVisualGroupId === group.productOptionGroupId
+                          }
+                          onCheckedChange={(checked) =>
+                            onSetVisualGroup(group.productOptionGroupId, Boolean(checked))
+                          }
+                        />
+                        <Label
+                          htmlFor={`visual-group-${group.productOptionGroupId}`}
+                          className="text-xs font-normal"
+                        >
+                          {isUpdatingVisualGroupId === group.productOptionGroupId
+                            ? "Updating..."
+                            : "Visual group"}
+                        </Label>
+                      </div>
                       <Button
                         type="button"
                         size="sm"
@@ -132,16 +165,36 @@ export function OptionGroupsTab({
                           : value.optionValueId;
                         const priceDeltaText =
                           value.priceDelta > 0 ? ` (+$${value.priceDelta.toFixed(2)})` : "";
+                        const primaryImage = value.images?.[0];
 
                         return (
                           <div
                             key={value.productOptionValueId}
-                            className="inline-flex items-center gap-1"
+                            className="inline-flex items-center gap-2 rounded-md border px-2 py-1"
                           >
+                            {primaryImage ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={primaryImage.publicUrl}
+                                alt=""
+                                className="h-8 w-8 rounded object-cover"
+                              />
+                            ) : null}
                             <Badge variant={getOptionStatusBadgeVariant(value.status)}>
                               {displayLabel}
                               {priceDeltaText} - {value.status}
                             </Badge>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              disabled={!canAddOptionValues || value.status === "DELETED"}
+                              onClick={() =>
+                                onManageOptionValueImages(value.productOptionValueId, displayLabel)
+                              }
+                            >
+                              Images
+                            </Button>
                             <Button
                               type="button"
                               size="sm"

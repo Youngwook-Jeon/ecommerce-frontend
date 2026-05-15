@@ -233,6 +233,10 @@ export function VariantsTab({
 
         <section className="space-y-3 rounded-md border p-4">
           <h3 className="text-sm font-semibold">Product Variants</h3>
+          <p className="text-xs text-muted-foreground">
+            Thumbnail URLs are synced from the visual option group&apos;s option value images, or
+            the product main image when no visual image applies.
+          </p>
 
           {isVariantsLoading ? (
             <p className="text-sm text-muted-foreground">Loading...</p>
@@ -242,9 +246,25 @@ export function VariantsTab({
                 return (
                   <div key={variant.productVariantId} className="rounded-md border p-3">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="space-y-0.5">
-                        <p className="text-sm font-medium">{variant.sku}</p>
-                        <p className="text-xs text-muted-foreground">Stock: {variant.stockQuantity}</p>
+                      <div className="flex items-center gap-3">
+                        {variant.mainImageUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={variant.mainImageUrl}
+                            alt=""
+                            className="h-12 w-12 shrink-0 rounded object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">
+                            No img
+                          </div>
+                        )}
+                        <div className="space-y-0.5">
+                          <p className="text-sm font-medium">{variant.sku}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Stock: {variant.stockQuantity}
+                          </p>
+                        </div>
                       </div>
                       <Badge variant={variant.status === "ACTIVE" ? "default" : "secondary"}>
                         {variant.status}
