@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import {
   categoryProductsPath,
+  mergePlpParams,
   type PlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 
@@ -34,18 +35,14 @@ export function ProductSortSelect({
 }: ProductSortSelectProps) {
   const router = useRouter();
 
-  const options =
-    plpParams.q != null
-      ? SORT_OPTIONS
-      : SORT_OPTIONS.filter((option) => option.value !== "relevance");
+  const options = SORT_OPTIONS.filter(
+    (option) => option.value !== "relevance"
+  );
 
   const onSortChange = (sort: PublicProductSort) => {
-    router.push(
-      categoryProductsPath(categoryId, {
-        ...plpParams,
-        sort,
-        page: 0,
-      })
+    router.replace(
+      categoryProductsPath(categoryId, mergePlpParams(plpParams, { sort })),
+      { scroll: false }
     );
   };
 

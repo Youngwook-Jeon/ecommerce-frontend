@@ -22,6 +22,7 @@ export function ProductCard({ product }: ProductCardProps) {
             <img
               src={product.mainImageUrl}
               alt={product.name}
+              loading="lazy"
               className="h-full w-full object-cover"
             />
           ) : (
@@ -32,7 +33,7 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
         <CardHeader className="space-y-1 p-4 pb-2">
           {product.brand ? (
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            <p className="text-xs tracking-wide text-muted-foreground">
               {product.brand}
             </p>
           ) : null}

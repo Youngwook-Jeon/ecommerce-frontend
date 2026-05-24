@@ -105,3 +105,63 @@ export function categoryProductsPath(
   const query = buildPlpQueryString(params);
   return `/categories/${categoryId}?${query}`;
 }
+
+/** Category PLP filters only (excludes keyword search — reserved for global search). */
+export function hasActiveCategoryFilters(params: PlpSearchParams): boolean {
+  return (
+    params.brand != null ||
+    params.minPrice != null ||
+    params.maxPrice != null
+  );
+}
+
+/** Merge filter changes and reset to first page. Use `'key' in patch` to clear optional fields. */
+export function mergePlpParams(
+  base: PlpSearchParams,
+  patch: Partial<PlpSearchParams>
+): PlpSearchParams {
+  const q = "q" in patch ? patch.q?.trim() || undefined : base.q;
+  const brand =
+    "brand" in patch ? patch.brand?.trim() || undefined : base.brand;
+  const minPrice = "minPrice" in patch ? patch.minPrice : base.minPrice;
+  const maxPrice = "maxPrice" in patch ? patch.maxPrice : base.maxPrice;
+
+  let sort = patch.sort ?? base.sort;
+  if (q == null && sort === "relevance") {
+    sort = DEFAULT_SORT;
+  }
+
+  return {
+    page: 0,
+    size: patch.size ?? base.size,
+    q,
+    sort,
+    brand,
+    minPrice,
+    maxPrice,
+  };
+}
+
+export function clearCategoryPlpFilters(base: PlpSearchParams): PlpSearchParams {
+  return {
+    page: 0,
+    size: base.size,
+    sort: base.sort === "relevance" ? DEFAULT_SORT : base.sort,
+    brand: undefined,
+    minPrice: undefined,
+    maxPrice: undefined,
+    q: undefined,
+  };
+}
+
+export function parsePriceInput(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return undefined;
+  }
+  const parsed = Number(trimmed);
+  if (Number.isNaN(parsed) || parsed < 0) {
+    return undefined;
+  }
+  return parsed;
+}
