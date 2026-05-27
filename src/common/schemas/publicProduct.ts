@@ -28,3 +28,34 @@ export const PublicProductPageSchema = z.object({
 });
 
 export type PublicProductPageVm = z.infer<typeof PublicProductPageSchema>;
+
+export const PublicProductBrandFacetValueSchema = z.object({
+  value: z.string(),
+  count: z.number().int().nonnegative(),
+  selected: z.boolean(),
+});
+
+export type PublicProductBrandFacetValueVm = z.infer<
+  typeof PublicProductBrandFacetValueSchema
+>;
+
+export const PublicProductPriceFacetBucketSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  min: z.number().nullable().optional(),
+  max: z.number().nullable().optional(),
+  count: z.number().int().nonnegative(),
+});
+
+export type PublicProductPriceFacetBucketVm = z.infer<
+  typeof PublicProductPriceFacetBucketSchema
+>;
+
+export const PublicProductFacetSchema = z.object({
+  categoryId: z.number().int().positive(),
+  totalMatching: z.number().int().nonnegative(),
+  brands: z.array(PublicProductBrandFacetValueSchema),
+  priceBuckets: z.array(PublicProductPriceFacetBucketSchema),
+});
+
+export type PublicProductFacetVm = z.infer<typeof PublicProductFacetSchema>;

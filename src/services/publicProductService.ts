@@ -1,7 +1,9 @@
 "use server";
 
 import {
+  PublicProductFacetSchema,
   PublicProductPageSchema,
+  type PublicProductFacetVm,
   type PublicProductPageVm,
   type PublicProductSort,
 } from "@/common/schemas/publicProduct";
@@ -9,6 +11,7 @@ import { PublicProductApiError } from "@/common/errors/publicProductApiError";
 import { fetchWrapper } from "@/common/services/fetchWrapper";
 
 const PUBLIC_PRODUCTS_PATH = "api/v1/product_service/public/products";
+const PUBLIC_PRODUCT_FACETS_PATH = "api/v1/product_service/public/products/facets";
 
 export interface GetPublicProductsParams {
   categoryId: number;
@@ -16,6 +19,13 @@ export interface GetPublicProductsParams {
   size?: number;
   q?: string;
   sort?: PublicProductSort;
+  brand?: string;
+  minPrice?: number;
+  maxPrice?: number;
+}
+
+export interface GetPublicProductFacetsParams {
+  categoryId: number;
   brand?: string;
   minPrice?: number;
   maxPrice?: number;
@@ -80,6 +90,49 @@ export async function getPublicProducts(
     return parsed.data;
   } catch (error) {
     console.error("getPublicProducts unexpected error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Storefront PLP facets — GET /public/products/facets (via Gateway).
+ */
+export async function getPublicProductFacets(
+  params: GetPublicProductFacetsParams
+): Promise<PublicProductFacetVm> {
+  const search = new URLSearchParams();
+  search.set("categoryId", String(params.categoryId));
+  appendSearchParam(search, "brands", params.brand);
+  appendSearchParam(search, "minPrice", params.minPrice);
+  appendSearchParam(search, "maxPrice", params.maxPrice);
+  search.append("facet", "brand");
+  search.append("facet", "price");
+
+  const url = `${PUBLIC_PRODUCT_FACETS_PATH}?${search.toString()}`;
+
+  try {
+    const response = await fetchWrapper.get(url);
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      const message =
+        response.status === 404
+          ? "Category not found or not available."
+          : "Failed to fetch public product facets.";
+      throw new PublicProductApiError(message, response.status, errorBody);
+    }
+
+    const data = await response.json();
+    const parsed = PublicProductFacetSchema.safeParse(data);
+
+    if (!parsed.success) {
+      console.error("Public product facets validation failed:", parsed.error);
+      throw new Error("Invalid public product facets response from API.");
+    }
+
+    return parsed.data;
+  } catch (error) {
+    console.error("getPublicProductFacets unexpected error:", error);
     throw error;
   }
 }

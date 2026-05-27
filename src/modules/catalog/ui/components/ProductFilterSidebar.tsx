@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import type { PublicProductFacetVm } from "@/common/schemas/publicProduct";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,11 +22,13 @@ import {
 interface ProductFilterSidebarProps {
   categoryId: number;
   plpParams: PlpSearchParams;
+  facetData: PublicProductFacetVm;
 }
 
 export function ProductFilterSidebar({
   categoryId,
   plpParams,
+  facetData,
 }: ProductFilterSidebarProps) {
   const { patchParams, clearFilters } = useCategoryPlpNavigation(
     categoryId,
@@ -40,6 +43,15 @@ export function ProductFilterSidebar({
     plpParams.maxPrice != null ? String(plpParams.maxPrice) : ""
   );
   const [priceError, setPriceError] = useState<string | null>(null);
+  const priceCountMap = new Map(facetData.priceBuckets.map((b) => [b.id, b.count]));
+  const pricePresetToFacetBucket: Record<string, string | undefined> = {
+    any: undefined,
+    "under-25": "under_25",
+    "25-50": "25_50",
+    "50-100": "50_100",
+    "100-200": "100_200",
+    "200-plus": "200_plus",
+  };
 
   const activePricePreset = matchPricePresetId(
     plpParams.minPrice,
@@ -134,6 +146,13 @@ export function ProductFilterSidebar({
                 className="cursor-pointer font-normal"
               >
                 {preset.label}
+                {preset.id !== "any" ? (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    (
+                    {priceCountMap.get(pricePresetToFacetBucket[preset.id] ?? "") ?? 0}
+                    )
+                  </span>
+                ) : null}
               </Label>
             </div>
           ))}
@@ -197,8 +216,25 @@ export function ProductFilterSidebar({
 
       <section>
         <h3 className="mb-3 text-sm font-medium">Brand</h3>
+        <div className="mb-3 space-y-1">
+          {facetData.brands.map((brand) => (
+            <button
+              key={brand.value}
+              type="button"
+              onClick={() =>
+                patchParams({ brand: brand.selected ? undefined : brand.value })
+              }
+              className="flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-sm hover:bg-muted"
+            >
+              <span className={brand.selected ? "font-semibold" : "font-normal"}>
+                {brand.value}
+              </span>
+              <span className="text-xs text-muted-foreground">{brand.count}</span>
+            </button>
+          ))}
+        </div>
         <p className="mb-2 text-xs text-muted-foreground">
-          Exact match (case-sensitive), one brand at a time.
+          Can't find your brand? type exact name.
         </p>
         <Input
           value={brandInput}
@@ -213,21 +249,11 @@ export function ProductFilterSidebar({
           className="mb-2"
         />
         <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            className="flex-1"
-            onClick={applyBrand}
-          >
+          <Button type="button" size="sm" className="flex-1" onClick={applyBrand}>
             Apply
           </Button>
           {plpParams.brand ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={clearBrand}
-            >
+            <Button type="button" size="sm" variant="outline" onClick={clearBrand}>
               Clear
             </Button>
           ) : null}

@@ -9,7 +9,7 @@ interface ProductGridProps {
 
 export function ProductGrid({ products }: ProductGridProps) {
   if (products.length === 0) {
-    return <EmptyList heading="이 카테고리에 표시할 상품이 없습니다." />;
+    return <EmptyList heading="No products found." />;
   }
 
   return (

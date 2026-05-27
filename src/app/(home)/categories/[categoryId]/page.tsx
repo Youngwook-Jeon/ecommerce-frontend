@@ -16,7 +16,10 @@ import {
   parsePlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 import { ProductCatalogLayout } from "@/modules/catalog/ui/components/ProductCatalogLayout";
-import { getPublicProducts } from "@/services/publicProductService";
+import {
+  getPublicProductFacets,
+  getPublicProducts,
+} from "@/services/publicProductService";
 
 interface CategoryProductsPageProps {
   params: Promise<{ categoryId: string }>;
@@ -38,16 +41,25 @@ export default async function CategoryProductsPage({
   const plpParams = parsePlpSearchParams(resolvedSearchParams);
 
   let productPage;
+  let facetData;
   try {
-    productPage = await getPublicProducts({
-      categoryId,
-      page: plpParams.page,
-      size: plpParams.size,
-      sort: plpParams.sort,
-      brand: plpParams.brand,
-      minPrice: plpParams.minPrice,
-      maxPrice: plpParams.maxPrice,
-    });
+    [productPage, facetData] = await Promise.all([
+      getPublicProducts({
+        categoryId,
+        page: plpParams.page,
+        size: plpParams.size,
+        sort: plpParams.sort,
+        brand: plpParams.brand,
+        minPrice: plpParams.minPrice,
+        maxPrice: plpParams.maxPrice,
+      }),
+      getPublicProductFacets({
+        categoryId,
+        brand: plpParams.brand,
+        minPrice: plpParams.minPrice,
+        maxPrice: plpParams.maxPrice,
+      }),
+    ]);
   } catch (error) {
     if (isPublicProductApiError(error) && error.status === 404) {
       notFound();
@@ -83,6 +95,7 @@ export default async function CategoryProductsPage({
         categoryId={categoryId}
         plpParams={plpParams}
         productPage={productPage}
+        facetData={facetData}
       />
     </Container>
   );
