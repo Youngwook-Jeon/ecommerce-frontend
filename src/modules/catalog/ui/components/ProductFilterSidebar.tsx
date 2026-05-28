@@ -12,6 +12,7 @@ import {
   PRICE_PRESETS,
   matchPricePresetId,
 } from "@/modules/catalog/lib/plpPricePresets";
+import { sortBrandFacetTerms } from "@/modules/catalog/lib/brandFacetSortPolicy";
 import { useCategoryPlpNavigation } from "@/modules/catalog/lib/useCategoryPlpNavigation";
 import {
   hasActiveCategoryFilters,
@@ -35,7 +36,6 @@ export function ProductFilterSidebar({
     plpParams
   );
 
-  const [brandInput, setBrandInput] = useState("");
   const [customMin, setCustomMin] = useState(
     plpParams.minPrice != null ? String(plpParams.minPrice) : ""
   );
@@ -46,6 +46,7 @@ export function ProductFilterSidebar({
   const brandFacet = facetData.facets.find(
     (facet) => facet.key === "brand" && facet.type === "terms"
   );
+  const sortedBrandTerms = sortBrandFacetTerms(brandFacet?.terms ?? []);
   const priceFacet = facetData.facets.find(
     (facet) => facet.key === "price" && facet.type === "range"
   );
@@ -71,10 +72,6 @@ export function ProductFilterSidebar({
   useEffect(() => {
     setPriceSelection(activePricePreset);
   }, [activePricePreset]);
-
-  useEffect(() => {
-    setBrandInput("");
-  }, [plpParams.brands]);
 
   useEffect(() => {
     setCustomMin(plpParams.minPrice != null ? String(plpParams.minPrice) : "");
@@ -111,17 +108,6 @@ export function ProductFilterSidebar({
     patchParams({ minPrice: min, maxPrice: max });
   };
 
-  const applyBrand = () => {
-    const normalized = brandInput.trim();
-    if (normalized.length === 0) {
-      return;
-    }
-    const nextBrands = Array.from(
-      new Set([...(plpParams.brands ?? []), normalized])
-    );
-    patchParams({ brands: nextBrands });
-  };
-
   const toggleBrand = (brandValue: string, selected: boolean) => {
     if (selected) {
       const nextBrands = (plpParams.brands ?? []).filter((item) => item !== brandValue);
@@ -133,7 +119,6 @@ export function ProductFilterSidebar({
   };
 
   const clearBrand = () => {
-    setBrandInput("");
     patchParams({ brands: undefined });
   };
 
@@ -240,9 +225,14 @@ export function ProductFilterSidebar({
       <Separator className="my-5" />
 
       <section>
-        <h3 className="mb-3 text-sm font-medium">Brand</h3>
+        <h3 className="mb-3 text-sm font-medium">
+          Brand
+          <span className="ml-1 text-xs text-muted-foreground">
+            ({sortedBrandTerms.length})
+          </span>
+        </h3>
         <div className="mb-3 space-y-1">
-          {(brandFacet?.terms ?? []).map((brand) => (
+          {sortedBrandTerms.map((brand) => (
             <button
               key={brand.value}
               type="button"
@@ -255,32 +245,17 @@ export function ProductFilterSidebar({
               <span className="text-xs text-muted-foreground">{brand.count}</span>
             </button>
           ))}
-        </div>
-        <p className="mb-2 text-xs text-muted-foreground">
-          Can't find your brand? type exact name.
-        </p>
-        <Input
-          value={brandInput}
-          onChange={(e) => setBrandInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              applyBrand();
-            }
-          }}
-          placeholder="e.g. Nike"
-          className="mb-2"
-        />
-        <div className="flex gap-2">
-          <Button type="button" size="sm" className="flex-1" onClick={applyBrand}>
-            Apply
-          </Button>
-          {plpParams.brands && plpParams.brands.length > 0 ? (
-            <Button type="button" size="sm" variant="outline" onClick={clearBrand}>
-              Clear
-            </Button>
+          {sortedBrandTerms.length === 0 ? (
+            <p className="rounded px-1.5 py-1 text-xs text-muted-foreground">
+              No brands (0)
+            </p>
           ) : null}
         </div>
+        {plpParams.brands && plpParams.brands.length > 0 ? (
+          <Button type="button" size="sm" variant="outline" onClick={clearBrand}>
+            Clear selected brands
+          </Button>
+        ) : null}
       </section>
     </aside>
   );
