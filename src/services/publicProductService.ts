@@ -19,14 +19,14 @@ export interface GetPublicProductsParams {
   size?: number;
   q?: string;
   sort?: PublicProductSort;
-  brand?: string;
+  brands?: string[];
   minPrice?: number;
   maxPrice?: number;
 }
 
 export interface GetPublicProductFacetsParams {
   categoryId: number;
-  brand?: string;
+  brands?: string[];
   minPrice?: number;
   maxPrice?: number;
 }
@@ -45,6 +45,22 @@ function appendSearchParam(
   search.set(key, String(value));
 }
 
+function appendRepeatedSearchParam(
+  search: URLSearchParams,
+  key: string,
+  values: string[] | undefined
+) {
+  if (!values || values.length === 0) {
+    return;
+  }
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (trimmed.length > 0) {
+      search.append(key, trimmed);
+    }
+  }
+}
+
 /**
  * Storefront PLP — GET /public/products (via Gateway).
  */
@@ -57,7 +73,7 @@ export async function getPublicProducts(
   appendSearchParam(search, "size", params.size ?? 24);
   appendSearchParam(search, "q", params.q);
   appendSearchParam(search, "sort", params.sort ?? "newest");
-  appendSearchParam(search, "brand", params.brand);
+  appendRepeatedSearchParam(search, "brands", params.brands);
   appendSearchParam(search, "minPrice", params.minPrice);
   appendSearchParam(search, "maxPrice", params.maxPrice);
 
@@ -102,7 +118,7 @@ export async function getPublicProductFacets(
 ): Promise<PublicProductFacetVm> {
   const search = new URLSearchParams();
   search.set("categoryId", String(params.categoryId));
-  appendSearchParam(search, "brands", params.brand);
+  appendRepeatedSearchParam(search, "brands", params.brands);
   appendSearchParam(search, "minPrice", params.minPrice);
   appendSearchParam(search, "maxPrice", params.maxPrice);
   search.append("facet", "brand");

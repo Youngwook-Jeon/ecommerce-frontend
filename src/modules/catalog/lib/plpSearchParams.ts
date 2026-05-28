@@ -12,7 +12,7 @@ export interface PlpSearchParams {
   size: number;
   q?: string;
   sort: PublicProductSort;
-  brand?: string;
+  brands?: string[];
   minPrice?: number;
   maxPrice?: number;
 }
@@ -57,7 +57,15 @@ export function parsePlpSearchParams(
   const sort = sortParsed.success ? sortParsed.data : DEFAULT_SORT;
 
   const q = first(raw.q)?.trim() || undefined;
-  const brand = first(raw.brand)?.trim() || undefined;
+  const brandsRaw = raw.brands ?? raw.brand;
+  const brandCandidates = Array.isArray(brandsRaw)
+    ? brandsRaw
+    : brandsRaw != null
+      ? [brandsRaw]
+      : [];
+  const brands = Array.from(
+    new Set(brandCandidates.map((value) => value.trim()).filter((value) => value.length > 0))
+  );
 
   const minPrice = parseOptionalPositiveInt(raw.minPrice);
   const maxPrice = parseOptionalPositiveInt(raw.maxPrice);
@@ -67,7 +75,7 @@ export function parsePlpSearchParams(
     size,
     q,
     sort: q == null && sort === "relevance" ? DEFAULT_SORT : sort,
-    brand,
+    brands: brands.length > 0 ? brands : undefined,
     minPrice,
     maxPrice,
   };
@@ -85,8 +93,10 @@ export function buildPlpQueryString(params: PlpSearchParams): string {
   if (params.q) {
     search.set("q", params.q);
   }
-  if (params.brand) {
-    search.set("brand", params.brand);
+  if (params.brands && params.brands.length > 0) {
+    for (const brand of params.brands) {
+      search.append("brands", brand);
+    }
   }
   if (params.minPrice != null) {
     search.set("minPrice", String(params.minPrice));
@@ -109,7 +119,7 @@ export function categoryProductsPath(
 /** Category PLP filters only (excludes keyword search — reserved for global search). */
 export function hasActiveCategoryFilters(params: PlpSearchParams): boolean {
   return (
-    params.brand != null ||
+    (params.brands != null && params.brands.length > 0) ||
     params.minPrice != null ||
     params.maxPrice != null
   );
@@ -121,8 +131,12 @@ export function mergePlpParams(
   patch: Partial<PlpSearchParams>
 ): PlpSearchParams {
   const q = "q" in patch ? patch.q?.trim() || undefined : base.q;
-  const brand =
-    "brand" in patch ? patch.brand?.trim() || undefined : base.brand;
+  const brands =
+    "brands" in patch
+      ? (patch.brands ?? [])
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      : (base.brands ?? []);
   const minPrice = "minPrice" in patch ? patch.minPrice : base.minPrice;
   const maxPrice = "maxPrice" in patch ? patch.maxPrice : base.maxPrice;
 
@@ -136,7 +150,7 @@ export function mergePlpParams(
     size: patch.size ?? base.size,
     q,
     sort,
-    brand,
+    brands: brands.length > 0 ? Array.from(new Set(brands)) : undefined,
     minPrice,
     maxPrice,
   };
@@ -147,7 +161,7 @@ export function clearCategoryPlpFilters(base: PlpSearchParams): PlpSearchParams 
     page: 0,
     size: base.size,
     sort: base.sort === "relevance" ? DEFAULT_SORT : base.sort,
-    brand: undefined,
+    brands: undefined,
     minPrice: undefined,
     maxPrice: undefined,
     q: undefined,

@@ -51,11 +51,27 @@ export type PublicProductPriceFacetBucketVm = z.infer<
   typeof PublicProductPriceFacetBucketSchema
 >;
 
+export const PublicProductFacetGroupSchema = z.discriminatedUnion("type", [
+  z.object({
+    key: z.string(),
+    type: z.literal("terms"),
+    terms: z.array(PublicProductBrandFacetValueSchema),
+    ranges: z.array(PublicProductPriceFacetBucketSchema),
+  }),
+  z.object({
+    key: z.string(),
+    type: z.literal("range"),
+    terms: z.array(PublicProductBrandFacetValueSchema),
+    ranges: z.array(PublicProductPriceFacetBucketSchema),
+  }),
+]);
+
+export type PublicProductFacetGroupVm = z.infer<typeof PublicProductFacetGroupSchema>;
+
 export const PublicProductFacetSchema = z.object({
   categoryId: z.number().int().positive(),
   totalMatching: z.number().int().nonnegative(),
-  brands: z.array(PublicProductBrandFacetValueSchema),
-  priceBuckets: z.array(PublicProductPriceFacetBucketSchema),
+  facets: z.array(PublicProductFacetGroupSchema),
 });
 
 export type PublicProductFacetVm = z.infer<typeof PublicProductFacetSchema>;

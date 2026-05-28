@@ -35,7 +35,7 @@ export function ProductFilterSidebar({
     plpParams
   );
 
-  const [brandInput, setBrandInput] = useState(plpParams.brand ?? "");
+  const [brandInput, setBrandInput] = useState("");
   const [customMin, setCustomMin] = useState(
     plpParams.minPrice != null ? String(plpParams.minPrice) : ""
   );
@@ -43,7 +43,15 @@ export function ProductFilterSidebar({
     plpParams.maxPrice != null ? String(plpParams.maxPrice) : ""
   );
   const [priceError, setPriceError] = useState<string | null>(null);
-  const priceCountMap = new Map(facetData.priceBuckets.map((b) => [b.id, b.count]));
+  const brandFacet = facetData.facets.find(
+    (facet) => facet.key === "brand" && facet.type === "terms"
+  );
+  const priceFacet = facetData.facets.find(
+    (facet) => facet.key === "price" && facet.type === "range"
+  );
+  const priceCountMap = new Map(
+    (priceFacet?.ranges ?? []).map((bucket) => [bucket.id, bucket.count])
+  );
   const pricePresetToFacetBucket: Record<string, string | undefined> = {
     any: undefined,
     "under-25": "under_25",
@@ -65,8 +73,8 @@ export function ProductFilterSidebar({
   }, [activePricePreset]);
 
   useEffect(() => {
-    setBrandInput(plpParams.brand ?? "");
-  }, [plpParams.brand]);
+    setBrandInput("");
+  }, [plpParams.brands]);
 
   useEffect(() => {
     setCustomMin(plpParams.minPrice != null ? String(plpParams.minPrice) : "");
@@ -104,12 +112,29 @@ export function ProductFilterSidebar({
   };
 
   const applyBrand = () => {
-    patchParams({ brand: brandInput.trim() || undefined });
+    const normalized = brandInput.trim();
+    if (normalized.length === 0) {
+      return;
+    }
+    const nextBrands = Array.from(
+      new Set([...(plpParams.brands ?? []), normalized])
+    );
+    patchParams({ brands: nextBrands });
+  };
+
+  const toggleBrand = (brandValue: string, selected: boolean) => {
+    if (selected) {
+      const nextBrands = (plpParams.brands ?? []).filter((item) => item !== brandValue);
+      patchParams({ brands: nextBrands.length > 0 ? nextBrands : undefined });
+      return;
+    }
+    const nextBrands = Array.from(new Set([...(plpParams.brands ?? []), brandValue]));
+    patchParams({ brands: nextBrands });
   };
 
   const clearBrand = () => {
     setBrandInput("");
-    patchParams({ brand: undefined });
+    patchParams({ brands: undefined });
   };
 
   return (
@@ -217,13 +242,11 @@ export function ProductFilterSidebar({
       <section>
         <h3 className="mb-3 text-sm font-medium">Brand</h3>
         <div className="mb-3 space-y-1">
-          {facetData.brands.map((brand) => (
+          {(brandFacet?.terms ?? []).map((brand) => (
             <button
               key={brand.value}
               type="button"
-              onClick={() =>
-                patchParams({ brand: brand.selected ? undefined : brand.value })
-              }
+              onClick={() => toggleBrand(brand.value, brand.selected)}
               className="flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-sm hover:bg-muted"
             >
               <span className={brand.selected ? "font-semibold" : "font-normal"}>
@@ -252,7 +275,7 @@ export function ProductFilterSidebar({
           <Button type="button" size="sm" className="flex-1" onClick={applyBrand}>
             Apply
           </Button>
-          {plpParams.brand ? (
+          {plpParams.brands && plpParams.brands.length > 0 ? (
             <Button type="button" size="sm" variant="outline" onClick={clearBrand}>
               Clear
             </Button>

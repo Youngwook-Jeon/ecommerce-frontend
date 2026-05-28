@@ -52,19 +52,26 @@ export function ProductActiveFilterChips({
     <div className="mb-4 flex flex-wrap items-center gap-2">
       <span className="text-sm text-muted-foreground">Active:</span>
 
-      {plpParams.brand ? (
-        <Badge variant="secondary" className="gap-1 pr-1">
-          Brand: {plpParams.brand}
+      {(plpParams.brands ?? []).map((brand) => (
+        <Badge key={brand} variant="secondary" className="gap-1 pr-1">
+          Brand: {brand}
           <button
             type="button"
             className="rounded-full p-0.5 hover:bg-muted"
-            aria-label={`Remove brand ${plpParams.brand}`}
-            onClick={() => patchParams({ brand: undefined })}
+            aria-label={`Remove brand ${brand}`}
+            onClick={() =>
+              patchParams({
+                brands:
+                  (plpParams.brands ?? []).filter((item) => item !== brand).length > 0
+                    ? (plpParams.brands ?? []).filter((item) => item !== brand)
+                    : undefined,
+              })
+            }
           >
             <X className="size-3" />
           </button>
         </Badge>
-      ) : null}
+      ))}
 
       {plpParams.minPrice != null || plpParams.maxPrice != null ? (
         <Badge variant="secondary" className="gap-1 pr-1">
