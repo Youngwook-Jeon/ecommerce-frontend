@@ -29,15 +29,26 @@ export const PublicProductPageSchema = z.object({
 
 export type PublicProductPageVm = z.infer<typeof PublicProductPageSchema>;
 
-export const PublicProductBrandFacetValueSchema = z.object({
+/** Single value in a `terms`-type facet (brand, option groups, etc.). */
+export const PublicProductTermsFacetValueSchema = z.object({
   value: z.string(),
+  /** Display label when `value` is an opaque id (e.g. option value uuid). */
+  label: z.string().optional(),
   count: z.number().int().nonnegative(),
   selected: z.boolean(),
 });
 
-export type PublicProductBrandFacetValueVm = z.infer<
-  typeof PublicProductBrandFacetValueSchema
+export type PublicProductTermsFacetValueVm = z.infer<
+  typeof PublicProductTermsFacetValueSchema
 >;
+
+const publicProductFacetGroupBaseSchema = z.object({
+  key: z.string(),
+  /** Section title; falls back to derived title from `key` in UI when absent. */
+  label: z.string().optional(),
+  /** Global option group id when `key` is `option:<groupKey>`. */
+  optionGroupId: z.string().uuid().optional(),
+});
 
 export const PublicProductPriceFacetBucketSchema = z.object({
   id: z.string(),
@@ -52,16 +63,14 @@ export type PublicProductPriceFacetBucketVm = z.infer<
 >;
 
 export const PublicProductFacetGroupSchema = z.discriminatedUnion("type", [
-  z.object({
-    key: z.string(),
+  publicProductFacetGroupBaseSchema.extend({
     type: z.literal("terms"),
-    terms: z.array(PublicProductBrandFacetValueSchema),
+    terms: z.array(PublicProductTermsFacetValueSchema),
     ranges: z.array(PublicProductPriceFacetBucketSchema),
   }),
-  z.object({
-    key: z.string(),
+  publicProductFacetGroupBaseSchema.extend({
     type: z.literal("range"),
-    terms: z.array(PublicProductBrandFacetValueSchema),
+    terms: z.array(PublicProductTermsFacetValueSchema),
     ranges: z.array(PublicProductPriceFacetBucketSchema),
   }),
 ]);

@@ -6,6 +6,15 @@ import {
 const DEFAULT_SIZE = 24;
 const DEFAULT_SORT: PublicProductSort = "newest";
 
+/**
+ * OpenSearch option facets: group key (e.g. `color`) → selected option value ids.
+ * OR within a group; AND across groups.
+ *
+ * Not parsed from URL or sent to the API until the search backend ships.
+ * Prefer `options[<groupKey>]=<valueId>` (repeated) or `optionValues=<id>` — align with backend at integration time.
+ */
+export type PlpOptionFilters = Record<string, string[]>;
+
 export interface PlpSearchParams {
   /** API page index (0-based). */
   page: number;
@@ -15,6 +24,8 @@ export interface PlpSearchParams {
   brands?: string[];
   minPrice?: number;
   maxPrice?: number;
+  /** Reserved for OpenSearch option facets — see {@link PlpOptionFilters}. */
+  optionFilters?: PlpOptionFilters;
 }
 
 type SearchParamValue = string | string[] | undefined;

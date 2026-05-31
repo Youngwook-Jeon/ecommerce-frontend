@@ -1,13 +1,13 @@
-import type { PublicProductBrandFacetValueVm } from "@/common/schemas/publicProduct";
+import type { PublicProductTermsFacetValueVm } from "@/common/schemas/publicProduct";
 
 export type BrandFacetSortPolicy = "count_desc_then_name_asc";
 
 const DEFAULT_POLICY: BrandFacetSortPolicy = "count_desc_then_name_asc";
 
 export function sortBrandFacetTerms(
-  terms: PublicProductBrandFacetValueVm[],
+  terms: PublicProductTermsFacetValueVm[],
   policy: BrandFacetSortPolicy = DEFAULT_POLICY
-): PublicProductBrandFacetValueVm[] {
+): PublicProductTermsFacetValueVm[] {
   if (policy === "count_desc_then_name_asc") {
     return [...terms].sort((a, b) => {
       if (b.count !== a.count) {
