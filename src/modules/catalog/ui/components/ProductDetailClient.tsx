@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-import type {
-  PublicProductDetailVm,
-  PublicProductOptionGroupVm,
-  PublicProductOptionValueVm,
+import {
+  isPublicProductPreview,
+  type PublicProductDetailVm,
+  type PublicProductOptionGroupVm,
+  type PublicProductOptionValueVm,
 } from "@/common/schemas/publicProductDetail";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -84,8 +86,21 @@ export function ProductDetailClient({ detail }: ProductDetailClientProps) {
     );
   };
 
+  const isPreview = isPublicProductPreview(detail);
+
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(320px,480px)_1fr]">
+    <div className="space-y-6">
+      {isPreview ? (
+        <Alert className="border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-50">
+          <AlertTitle>Coming soon</AlertTitle>
+          <AlertDescription>
+            This product is not available for purchase yet. You can preview it here
+            before launch.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className="grid gap-8 lg:grid-cols-[minmax(320px,480px)_1fr]">
       <section>
         <div className="overflow-hidden rounded-lg border bg-muted">
           {displayImageUrl ? (
@@ -183,6 +198,7 @@ export function ProductDetailClient({ detail }: ProductDetailClientProps) {
           {addToCart.label}
         </Button>
       </section>
+      </div>
     </div>
   );
 }
