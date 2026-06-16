@@ -1,5 +1,6 @@
-"use server";
+import { cache } from "react";
 
+import { STOREFRONT_PDP_REVALIDATE_SECONDS } from "@/common/constants/storefrontCache";
 import {
   PublicProductFacetSchema,
   PublicProductPageSchema,
@@ -12,7 +13,7 @@ import {
   PublicProductDetailSchema,
   type PublicProductDetailVm,
 } from "@/common/schemas/publicProductDetail";
-import { fetchWrapper } from "@/common/services/fetchWrapper";
+import { publicGet } from "@/common/services/publicFetch";
 
 const PUBLIC_PRODUCTS_PATH = "api/v1/product_service/public/products";
 const PUBLIC_PRODUCT_FACETS_PATH = "api/v1/product_service/public/products/facets";
@@ -88,7 +89,7 @@ export async function getPublicProducts(
   const url = `${PUBLIC_PRODUCTS_PATH}?${search.toString()}`;
 
   try {
-    const response = await fetchWrapper.get(url);
+    const response = await publicGet(url);
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -135,7 +136,7 @@ export async function getPublicProductFacets(
   const url = `${PUBLIC_PRODUCT_FACETS_PATH}?${search.toString()}`;
 
   try {
-    const response = await fetchWrapper.get(url);
+    const response = await publicGet(url);
 
     if (!response.ok) {
       const errorBody = await response.text();
@@ -161,36 +162,50 @@ export async function getPublicProductFacets(
   }
 }
 
+async function fetchPublicProductDetail(
+  productId: string
+): Promise<PublicProductDetailVm> {
+  const normalizedProductId = productId.trim();
+  const url = `${PUBLIC_PRODUCTS_PATH}/${normalizedProductId}`;
+
+  const response = await publicGet(url, {
+    next: {
+      revalidate: STOREFRONT_PDP_REVALIDATE_SECONDS,
+      tags: [`storefront-product:${normalizedProductId}`],
+    },
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    const message =
+      response.status === 404
+        ? "Product not found or not available."
+        : "Failed to fetch public product detail.";
+    throw new PublicProductApiError(message, response.status, errorBody);
+  }
+
+  const data = await response.json();
+  const parsed = PublicProductDetailSchema.safeParse(data);
+
+  if (!parsed.success) {
+    console.error("Public product detail validation failed:", parsed.error);
+    throw new Error("Invalid public product detail response from API.");
+  }
+
+  return parsed.data;
+}
+
+const getPublicProductDetailCached = cache(fetchPublicProductDetail);
+
 /**
  * Storefront PDP detail — GET /public/products/{productId} (via Gateway).
+ * Dedupes metadata + page fetches per request; ISR revalidate matches backend TTL.
  */
 export async function getPublicProductDetail(
   params: GetPublicProductDetailParams
 ): Promise<PublicProductDetailVm> {
-  const productId = params.productId.trim();
-  const url = `${PUBLIC_PRODUCTS_PATH}/${productId}`;
-
   try {
-    const response = await fetchWrapper.get(url);
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      const message =
-        response.status === 404
-          ? "Product not found or not available."
-          : "Failed to fetch public product detail.";
-      throw new PublicProductApiError(message, response.status, errorBody);
-    }
-
-    const data = await response.json();
-    const parsed = PublicProductDetailSchema.safeParse(data);
-
-    if (!parsed.success) {
-      console.error("Public product detail validation failed:", parsed.error);
-      throw new Error("Invalid public product detail response from API.");
-    }
-
-    return parsed.data;
+    return await getPublicProductDetailCached(params.productId);
   } catch (error) {
     console.error("getPublicProductDetail unexpected error:", error);
     throw error;
