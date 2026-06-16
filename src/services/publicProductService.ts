@@ -1,6 +1,6 @@
 import { cache } from "react";
 
-import { STOREFRONT_PDP_REVALIDATE_SECONDS } from "@/common/constants/storefrontCache";
+import { STOREFRONT_PDP_REVALIDATE_SECONDS, resolveStorefrontPublicGetInit } from "@/common/constants/storefrontCache";
 import {
   PublicProductFacetSchema,
   PublicProductPageSchema,
@@ -168,12 +168,13 @@ async function fetchPublicProductDetail(
   const normalizedProductId = productId.trim();
   const url = `${PUBLIC_PRODUCTS_PATH}/${normalizedProductId}`;
 
-  const response = await publicGet(url, {
-    next: {
+  const response = await publicGet(
+    url,
+    resolveStorefrontPublicGetInit({
       revalidate: STOREFRONT_PDP_REVALIDATE_SECONDS,
       tags: [`storefront-product:${normalizedProductId}`],
-    },
-  });
+    })
+  );
 
   if (!response.ok) {
     const errorBody = await response.text();

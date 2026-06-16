@@ -15,11 +15,13 @@ import {
   hasActiveCategoryFilters,
   parsePlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
+import { getCategoryBreadcrumbPath } from "@/modules/catalog/lib/categoryTreeUtils";
 import { ProductCatalogLayout } from "@/modules/catalog/ui/components/ProductCatalogLayout";
 import {
   getPublicProductFacets,
   getPublicProducts,
 } from "@/services/publicProductService";
+import { getPublicCategoryHierarchy } from "@/services/publicCategoryService";
 
 interface CategoryProductsPageProps {
   params: Promise<{ categoryId: string }>;
@@ -42,8 +44,9 @@ export default async function CategoryProductsPage({
 
   let productPage;
   let facetData;
+  let categoryHierarchy;
   try {
-    [productPage, facetData] = await Promise.all([
+    [productPage, facetData, categoryHierarchy] = await Promise.all([
       getPublicProducts({
         categoryId,
         page: plpParams.page,
@@ -59,6 +62,7 @@ export default async function CategoryProductsPage({
         minPrice: plpParams.minPrice,
         maxPrice: plpParams.maxPrice,
       }),
+      getPublicCategoryHierarchy(),
     ]);
   } catch (error) {
     if (isPublicProductApiError(error) && error.status === 404) {
@@ -66,6 +70,10 @@ export default async function CategoryProductsPage({
     }
     throw error;
   }
+
+  const breadcrumbPath = getCategoryBreadcrumbPath(categoryHierarchy, categoryId);
+  const categoryName =
+    breadcrumbPath.at(-1)?.name ?? `Category ${categoryId}`;
 
   return (
     <Container className="py-10">
@@ -78,13 +86,35 @@ export default async function CategoryProductsPage({
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>Category {categoryId}</BreadcrumbPage>
+            <BreadcrumbLink asChild>
+              <Link href="/categories">Categories</Link>
+            </BreadcrumbLink>
           </BreadcrumbItem>
+          {breadcrumbPath.map((category, index) => {
+            const isLast = index === breadcrumbPath.length - 1;
+
+            return (
+              <span key={category.id} className="contents">
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  {isLast ? (
+                    <BreadcrumbPage>{category.name}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={`/categories/${category.id}`}>
+                        {category.name}
+                      </Link>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              </span>
+            );
+          })}
         </BreadcrumbList>
       </Breadcrumb>
 
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Product List</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">{categoryName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {productPage.totalElements.toLocaleString("en-US")} products
           {hasActiveCategoryFilters(plpParams) ? " · filtered" : ""}

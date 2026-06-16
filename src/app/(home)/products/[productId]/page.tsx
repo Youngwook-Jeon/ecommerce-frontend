@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/breadcrumb";
 import { isPublicProductApiError } from "@/common/errors/publicProductApiError";
 import { parseProductIdParam } from "@/modules/catalog/lib/parseProductIdParam";
+import { findCategoryById } from "@/modules/catalog/lib/categoryTreeUtils";
 import { ProductDetailClient } from "@/modules/catalog/ui/components/ProductDetailClient";
 import { getPublicProductDetail } from "@/services/publicProductService";
+import { getPublicCategoryHierarchy } from "@/services/publicCategoryService";
 
 interface ProductDetailPageProps {
   params: Promise<{ productId: string }>;
@@ -82,6 +84,14 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
   const showCategoryCrumb =
     detail.listedInCatalog && detail.categoryId != null && detail.categoryId > 0;
 
+  const categoryName = showCategoryCrumb
+    ? (
+        await getPublicCategoryHierarchy().then((hierarchy) =>
+          findCategoryById(hierarchy, detail.categoryId!)
+        )
+      )?.name ?? `Category ${detail.categoryId}`
+    : null;
+
   return (
     <Container className="py-10">
       <Breadcrumb className="mb-6">
@@ -96,8 +106,14 @@ export default async function ProductDetailPage({ params }: ProductDetailPagePro
               <BreadcrumbSeparator />
               <BreadcrumbItem>
                 <BreadcrumbLink asChild>
+                  <Link href="/categories">Categories</Link>
+                </BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink asChild>
                   <Link href={`/categories/${detail.categoryId}`}>
-                    Category {detail.categoryId}
+                    {categoryName}
                   </Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
