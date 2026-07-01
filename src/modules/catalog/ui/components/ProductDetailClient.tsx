@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 import {
   isPublicProductPreview,
@@ -11,6 +13,8 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ToastAction } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import {
   applyOptionSelection,
   buildInitialSelection,
@@ -25,6 +29,7 @@ import {
   resolvePdpGallery,
 } from "@/modules/catalog/lib/pdpGallery";
 import { getAddToCartUiState } from "@/modules/catalog/lib/storefrontProductVisibility";
+import { addCartItem } from "@/services/cartService";
 
 interface ProductDetailClientProps {
   detail: PublicProductDetailVm;
@@ -46,6 +51,9 @@ function formatPrice(value: number): string {
 }
 
 export function ProductDetailClient({ detail }: ProductDetailClientProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isAdding, startAddTransition] = useTransition();
   const sortedGroups = useMemo(
     () => sortOptionGroups(detail.optionGroups),
     [detail.optionGroups]
@@ -79,6 +87,51 @@ export function ProductDetailClient({ detail }: ProductDetailClientProps) {
   const addToCart = getAddToCartUiState(detail, selectedVariant, {
     hasOptionGroups: sortedGroups.length > 0,
   });
+
+  const handleAddToCart = () => {
+    if (!addToCart.enabled || isAdding) {
+      return;
+    }
+
+    const productVariantId = selectedVariant?.productVariantId;
+    if (!productVariantId) {
+      toast({
+        variant: "destructive",
+        title: "Unable to add to cart",
+        description: "Select all required options before adding this product.",
+      });
+      return;
+    }
+
+    startAddTransition(async () => {
+      try {
+        await addCartItem({
+          productId: detail.id,
+          productVariantId,
+          quantity: 1,
+        });
+        router.refresh();
+        toast({
+          title: "Added to cart",
+          description: `${detail.name} was added to your cart.`,
+          action: (
+            <ToastAction altText="View cart" asChild>
+              <Link href="/cart">View cart</Link>
+            </ToastAction>
+          ),
+        });
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Unable to add to cart",
+          description:
+            error instanceof Error
+              ? error.message
+              : "Something went wrong. Please try again.",
+        });
+      }
+    });
+  };
 
   const handleSelect = (groupId: string, valueId: string) => {
     setSelectedByGroup((prev) =>
@@ -194,8 +247,13 @@ export function ProductDetailClient({ detail }: ProductDetailClientProps) {
           </div>
         ) : null}
 
-        <Button size="lg" className="w-full sm:w-auto" disabled={!addToCart.enabled}>
-          {addToCart.label}
+        <Button
+          size="lg"
+          className="w-full sm:w-auto"
+          disabled={!addToCart.enabled || isAdding}
+          onClick={handleAddToCart}
+        >
+          {isAdding ? "Adding..." : addToCart.label}
         </Button>
       </section>
       </div>
