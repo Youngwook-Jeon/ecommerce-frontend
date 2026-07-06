@@ -1,11 +1,31 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { LuShoppingCart } from "react-icons/lu";
 
+import { EMPTY_CART, type CartVm } from "@/common/schemas/cart";
 import { Button } from "@/components/ui/button";
-import { getCurrentCartSafe } from "@/services/cartService";
+import {
+  loadCartBadge,
+  subscribeCartBadge,
+} from "@/modules/cart/lib/cartBadgeSync";
 
-export default async function CartButton() {
-  const cart = await getCurrentCartSafe();
+export default function CartButton() {
+  const pathname = usePathname();
+  const [cart, setCart] = useState<CartVm>(EMPTY_CART);
+
+  useEffect(() => subscribeCartBadge(setCart), []);
+
+  useEffect(() => {
+    void loadCartBadge()
+      .then(setCart)
+      .catch((error) => {
+        console.error("Failed to load cart badge:", error);
+      });
+  }, [pathname]);
+
   const badgeCount = cart.totalQuantity;
 
   return (

@@ -5,10 +5,12 @@ import { z } from "zod";
 
 import {
   AddCartItemInputSchema,
+  CartMergeResponseSchema,
   CartResponseSchema,
   CartSyncResponseSchema,
   EMPTY_CART,
   type AddCartItemInput,
+  type CartMergeVm,
   type CartSyncVm,
   type CartVm,
 } from "@/common/schemas/cart";
@@ -52,11 +54,38 @@ export async function getCurrentCartSafe(): Promise<CartVm> {
   }
 }
 
+const mutationFetchOptions = {
+  cache: "no-store" as const,
+  forwardResponseCookies: true,
+};
+
 export async function syncCurrentCart(): Promise<CartSyncVm> {
-  const response = await fetchWrapper.post(`${CART_CURRENT_PATH}/sync`, {}, {
-    cache: "no-store",
-  });
+  const response = await fetchWrapper.post(`${CART_CURRENT_PATH}/sync`, {}, mutationFetchOptions);
   return parseJsonResponse(response, CartSyncResponseSchema, "cart sync");
+}
+
+export async function mergeGuestCartOnLogin(): Promise<CartMergeVm> {
+  const response = await fetchWrapper.post(
+    `${CART_CURRENT_PATH}/merge`,
+    {},
+    mutationFetchOptions
+  );
+  const result = await parseJsonResponse(
+    response,
+    CartMergeResponseSchema,
+    "merge guest cart on login"
+  );
+  revalidateCartPaths();
+  return result;
+}
+
+export async function mergeGuestCartOnLoginSafe(): Promise<CartMergeVm | null> {
+  try {
+    return await mergeGuestCartOnLogin();
+  } catch (error) {
+    console.error("Failed to merge guest cart on login:", error);
+    return null;
+  }
 }
 
 export async function addCartItem(input: AddCartItemInput): Promise<CartVm> {
@@ -64,7 +93,7 @@ export async function addCartItem(input: AddCartItemInput): Promise<CartVm> {
   const response = await fetchWrapper.post(
     `${CART_CURRENT_PATH}/items`,
     payload,
-    { cache: "no-store" }
+    mutationFetchOptions
   );
   const cart = await parseJsonResponse(response, CartResponseSchema, "add cart item");
   revalidateCartPaths();
@@ -74,7 +103,7 @@ export async function addCartItem(input: AddCartItemInput): Promise<CartVm> {
 export async function removeCartItem(itemId: string): Promise<CartVm> {
   const response = await fetchWrapper.del(
     `${CART_CURRENT_PATH}/items/${itemId}`,
-    { cache: "no-store" }
+    mutationFetchOptions
   );
   const cart = await parseJsonResponse(response, CartResponseSchema, "remove cart item");
   revalidateCartPaths();
@@ -88,7 +117,7 @@ export async function updateCartItemQuantity(
   const response = await fetchWrapper.patch(
     `${CART_CURRENT_PATH}/items/${itemId}`,
     { quantity },
-    { cache: "no-store" }
+    mutationFetchOptions
   );
   const cart = await parseJsonResponse(
     response,
@@ -100,9 +129,10 @@ export async function updateCartItemQuantity(
 }
 
 export async function clearCart(): Promise<CartVm> {
-  const response = await fetchWrapper.del(`${CART_CURRENT_PATH}/items`, {
-    cache: "no-store",
-  });
+  const response = await fetchWrapper.del(
+    `${CART_CURRENT_PATH}/items`,
+    mutationFetchOptions
+  );
   const cart = await parseJsonResponse(response, CartResponseSchema, "clear cart");
   revalidateCartPaths();
   return cart;

@@ -64,6 +64,27 @@ export const CartSyncResponseSchema = z.object({
   changes: z.array(CartSyncChangeResponseSchema),
 });
 
+export const CartMergeSkipReasonSchema = z.enum([
+  "VARIANT_NOT_FOUND",
+  "PRODUCT_NOT_FOUND",
+  "MAX_LINE_ITEMS_EXCEEDED",
+]);
+
+export const CartMergeSkippedLineResponseSchema = z.object({
+  productId: z.string().uuid(),
+  productVariantId: z.string().uuid(),
+  productName: z.string(),
+  quantity: z.number().int().positive(),
+  reason: CartMergeSkipReasonSchema,
+});
+
+export const CartMergeResponseSchema = z.object({
+  cart: CartResponseSchema,
+  mergedLineCount: z.number().int().nonnegative(),
+  skippedLines: z.array(CartMergeSkippedLineResponseSchema),
+  syncChanges: z.array(CartSyncChangeResponseSchema),
+});
+
 export const AddCartItemInputSchema = z.object({
   productId: z.string().uuid(),
   productVariantId: z.string().uuid(),
@@ -77,6 +98,11 @@ export type CartItemVm = z.infer<typeof CartItemResponseSchema>;
 export type CartVm = z.infer<typeof CartResponseSchema>;
 export type CartSyncChangeVm = z.infer<typeof CartSyncChangeResponseSchema>;
 export type CartSyncVm = z.infer<typeof CartSyncResponseSchema>;
+export type CartMergeSkipReasonVm = z.infer<typeof CartMergeSkipReasonSchema>;
+export type CartMergeSkippedLineVm = z.infer<
+  typeof CartMergeSkippedLineResponseSchema
+>;
+export type CartMergeVm = z.infer<typeof CartMergeResponseSchema>;
 
 export const EMPTY_CART: CartVm = {
   cartId: null,

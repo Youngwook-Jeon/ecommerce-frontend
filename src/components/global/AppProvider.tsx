@@ -2,6 +2,7 @@
 
 import { Toaster } from "@/components/ui/toaster";
 import ThemeProvider from "@/components/global/ThemeProvider";
+import { GatewaySessionBootstrap } from "@/components/global/GatewaySessionBootstrap";
 
 export default function AppProvider({
   children,
@@ -10,6 +11,7 @@ export default function AppProvider({
 }) {
   return (
     <>
+      <GatewaySessionBootstrap />
       <Toaster />
       <ThemeProvider
         attribute="class"

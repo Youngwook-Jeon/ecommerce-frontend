@@ -10,6 +10,7 @@ import {
   type PublicProductOptionGroupVm,
   type PublicProductOptionValueVm,
 } from "@/common/schemas/publicProductDetail";
+import { bootstrapGatewaySession } from "@/common/lib/gatewaySession";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   resolvePdpGallery,
 } from "@/modules/catalog/lib/pdpGallery";
 import { getAddToCartUiState } from "@/modules/catalog/lib/storefrontProductVisibility";
+import { notifyCartBadgeUpdated } from "@/modules/cart/lib/cartBadgeSync";
 import { addCartItem } from "@/services/cartService";
 
 interface ProductDetailClientProps {
@@ -105,11 +107,13 @@ export function ProductDetailClient({ detail }: ProductDetailClientProps) {
 
     startAddTransition(async () => {
       try {
-        await addCartItem({
+        await bootstrapGatewaySession();
+        const cart = await addCartItem({
           productId: detail.id,
           productVariantId,
           quantity: 1,
         });
+        notifyCartBadgeUpdated(cart);
         router.refresh();
         toast({
           title: "Added to cart",

@@ -9,6 +9,7 @@ import type { CartSyncChangeVm, CartVm } from "@/common/schemas/cart";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatCartPrice } from "@/modules/cart/lib/formatCartPrice";
+import { notifyCartBadgeUpdated } from "@/modules/cart/lib/cartBadgeSync";
 import {
   clearCart,
   removeCartItem,
@@ -58,6 +59,7 @@ export function CartPageClient({ initialCart, syncChanges }: CartPageClientProps
       try {
         const nextCart = await mutation();
         setCart(nextCart);
+        notifyCartBadgeUpdated(nextCart);
         router.refresh();
       } catch (error) {
         setErrorMessage(
