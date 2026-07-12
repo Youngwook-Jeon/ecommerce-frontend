@@ -225,7 +225,7 @@ export function CartPageClient({ initialCart, syncChanges }: CartPageClientProps
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Shipping</span>
-              <span className="text-muted-foreground">Calculated at checkout</span>
+              <span className="font-medium">Free</span>
             </div>
           </div>
           <Separator className="my-4" />
@@ -233,8 +233,8 @@ export function CartPageClient({ initialCart, syncChanges }: CartPageClientProps
             <span>Estimated total</span>
             <span>{formatCartPrice(cart.subtotal)}</span>
           </div>
-          <Button className="mt-6 w-full" disabled>
-            Checkout coming soon
+          <Button asChild className="mt-6 w-full" disabled={cart.itemCount === 0}>
+            <Link href="/checkout">Checkout</Link>
           </Button>
           <Button
             type="button"
