@@ -5,14 +5,12 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import type { CartVm } from "@/common/schemas/cart";
-import { EMPTY_CART } from "@/common/schemas/cart";
 import type { PlaceOrderInput } from "@/common/schemas/order";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { formatCartPrice } from "@/modules/cart/lib/formatCartPrice";
-import { notifyCartBadgeUpdated } from "@/modules/cart/lib/cartBadgeSync";
 import { placeOrder } from "@/services/orderService";
 
 interface CheckoutPageClientProps {
@@ -46,8 +44,8 @@ export function CheckoutPageClient({ initialCart }: CheckoutPageClientProps) {
     startTransition(async () => {
       try {
         const order = await placeOrder(form);
-        notifyCartBadgeUpdated(EMPTY_CART);
-        router.push(`/checkout/confirmation/${order.orderId}`);
+        // Cart stays until payment confirms; badge refreshes on CONFIRMED.
+        router.push(`/checkout/processing/${order.orderId}`);
       } catch (submitError) {
         const message =
           submitError instanceof Error ? submitError.message : "Failed to place order.";
@@ -61,7 +59,8 @@ export function CheckoutPageClient({ initialCart }: CheckoutPageClientProps) {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Checkout</h1>
         <p className="text-muted-foreground">
-          Review your items and enter a shipping address to place your order.
+          Review your items and enter a shipping address. After you place the order, payment is
+          processed automatically.
         </p>
       </div>
 
@@ -152,7 +151,7 @@ export function CheckoutPageClient({ initialCart }: CheckoutPageClientProps) {
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
           <Button type="submit" className="w-full" disabled={isPending}>
-            {isPending ? "Placing order..." : "Place order"}
+            {isPending ? "Placing order..." : "Place order & pay"}
           </Button>
         </form>
 

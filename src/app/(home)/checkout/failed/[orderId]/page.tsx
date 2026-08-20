@@ -9,13 +9,11 @@ import {
 } from "@/modules/checkout/ui/components/OrderSummaryCard";
 import { getOrder } from "@/services/orderService";
 
-interface CheckoutConfirmationPageProps {
+interface CheckoutFailedPageProps {
   params: Promise<{ orderId: string }>;
 }
 
-export default async function CheckoutConfirmationPage({
-  params,
-}: CheckoutConfirmationPageProps) {
+export default async function CheckoutFailedPage({ params }: CheckoutFailedPageProps) {
   const { orderId } = await params;
 
   let order;
@@ -25,18 +23,22 @@ export default async function CheckoutConfirmationPage({
     notFound();
   }
 
-  if (order.status !== "CONFIRMED") {
+  if (order.status !== "CANCELLED" && order.status !== "EXPIRED") {
     redirect(pathForOrderStatus(order));
   }
+
+  const title = order.status === "EXPIRED" ? "Order expired" : "Payment failed";
+  const description =
+    order.status === "EXPIRED"
+      ? "The payment window for this order expired. Items should still be in your cart if stock remains."
+      : "We could not complete payment for this order. Items remain in your cart so you can try again.";
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 py-8">
       <div className="space-y-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Payment confirmed</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
         <p className="text-muted-foreground">
-          Thank you. Order{" "}
-          <span className="font-medium text-foreground">#{order.orderId}</span> is confirmed and
-          your cart has been cleared.
+          Order <span className="font-medium text-foreground">#{order.orderId}</span> — {description}
         </p>
       </div>
 
@@ -45,10 +47,10 @@ export default async function CheckoutConfirmationPage({
 
       <div className="flex justify-center gap-3">
         <Button asChild>
-          <Link href="/">Continue shopping</Link>
+          <Link href="/cart">Back to cart</Link>
         </Button>
         <Button asChild variant="outline">
-          <Link href="/cart">View cart</Link>
+          <Link href="/checkout">Try checkout again</Link>
         </Button>
       </div>
     </div>
