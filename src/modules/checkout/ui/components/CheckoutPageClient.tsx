@@ -59,8 +59,8 @@ export function CheckoutPageClient({ initialCart }: CheckoutPageClientProps) {
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Checkout</h1>
         <p className="text-muted-foreground">
-          Review your items and enter a shipping address. After you place the order, payment is
-          processed automatically.
+          Review your items and enter a shipping address. After you place the order, you&apos;ll
+          complete payment with Stripe Embedded Elements.
         </p>
       </div>
 

@@ -228,3 +228,13 @@ bun run lint
 ## 라이선스
 
 개인 학습·포트폴리오 목적 프로젝트입니다.
+
+## Stripe Embedded Payment (checkout)
+
+Checkout payment uses Stripe **Payment Element** (Embedded) on `/checkout/processing/[orderId]`.
+
+1. Set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in frontend `.env.local` (see `.env.example`).
+2. Run payment-service with `PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET`.
+3. Forward webhooks: `stripe listen --forward-to localhost:9000/api/v1/payment_service/webhooks/stripe`
+4. With `PAYMENT_PROVIDER=stub` (default), the processing page skips Elements and only polls order status.
+

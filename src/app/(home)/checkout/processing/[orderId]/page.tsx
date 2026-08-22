@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { pathForOrderStatus } from "@/modules/checkout/lib/orderStatusRoutes";
-import { OrderStatusPoller } from "@/modules/checkout/ui/components/OrderStatusPoller";
+import { CheckoutProcessingClient } from "@/modules/checkout/ui/components/CheckoutProcessingClient";
 import { getOrder } from "@/services/orderService";
 
 interface CheckoutProcessingPageProps {
@@ -24,5 +24,5 @@ export default async function CheckoutProcessingPage({
     redirect(pathForOrderStatus(order));
   }
 
-  return <OrderStatusPoller orderId={orderId} initialOrder={order} />;
+  return <CheckoutProcessingClient orderId={orderId} initialOrder={order} />;
 }
