@@ -52,11 +52,13 @@ export function CheckoutProcessingClient({
 
     async function loadSecret() {
       while (!cancelled) {
-        try {
-          const view = await getClientSecretByOrderId(orderId);
-          if (cancelled) {
-            return;
-          }
+        const result = await getClientSecretByOrderId(orderId);
+        if (cancelled) {
+          return;
+        }
+
+        if (result.status === "ready") {
+          const view = result.data;
           setClientSecretView(view);
 
           if (view.provider === "STUB") {
@@ -74,21 +76,17 @@ export function CheckoutProcessingClient({
 
           setPhase("pay");
           return;
-        } catch (error) {
-          if (cancelled) {
-            return;
-          }
-          if (Date.now() - startedAt >= SECRET_RETRY_TIMEOUT_MS) {
-            setLoadError(
-              error instanceof Error
-                ? error.message
-                : "Payment session is not ready yet. Please try again."
-            );
-            setPhase("error");
-            return;
-          }
-          await sleep(SECRET_RETRY_INTERVAL_MS);
         }
+
+        // pending (404) or transient/other API failure — keep polling until timeout
+        if (Date.now() - startedAt >= SECRET_RETRY_TIMEOUT_MS) {
+          setLoadError(
+            result.message || "Payment session is not ready yet. Please try again."
+          );
+          setPhase("error");
+          return;
+        }
+        await sleep(SECRET_RETRY_INTERVAL_MS);
       }
     }
 
