@@ -234,7 +234,10 @@ bun run lint
 Checkout payment uses Stripe **Payment Element** (Embedded) on `/checkout/processing/[orderId]`.
 
 1. Set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in frontend `.env.local` (see `.env.example`).
-2. Run payment-service with `PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET`.
-3. Forward webhooks: `stripe listen --forward-to localhost:9000/api/v1/payment_service/webhooks/stripe`
-4. With `PAYMENT_PROVIDER=stub` (default), the processing page skips Elements and only polls order status.
+2. In `ecommerce-msa/.env` (see `.env.example`):
+   - `PAYMENT_PROVIDER=stripe`
+   - `STRIPE_API_KEY=sk_test_...` (Dashboard secret key — **not** `STRIPE_SECRET_KEY`)
+   - Do **not** paste `STRIPE_WEBHOOK_SECRET` manually — `make up` / `make apps` runs  
+     `stripe listen --print-secret`, injects the CLI `whsec_`, and starts listen in the background.
+3. With `PAYMENT_PROVIDER=stub` (default), the processing page skips Elements and only polls order status.
 
