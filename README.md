@@ -1,243 +1,156 @@
 # Ecomart — E-Commerce Frontend
 
-**Next.js 15** 기반 이커머스 **스토어프론트·관리자(Admin) UI**입니다. 백엔드 API Gateway(`edge-service`)를 단일 진입점으로 사용하며, 세션·CSRF 쿠키를 포함한 인증 흐름과 **R2 Presigned URL** 이미지 업로드를 클라이언트에서 처리합니다.
+Next.js App Router 기반의 이커머스 프론트엔드입니다. 공개 상품 탐색, 비회원·회원 장바구니, 주문·결제, 관리자 상품 관리를 [MSA 백엔드](https://github.com/Youngwook-Jeon/ecommerce-msa)와 연동합니다.
 
-> 백엔드(MSA)는 별도 저장소 [ecommerce-msa](https://github.com/Youngwook-Jeon/ecommerce-msa) 에 있습니다. 로컬에서는 Gateway가 이 앱(`:3000`)을 프록시하므로 **브라우저 접속은 `http://localhost:9000`** 을 기준으로 합니다.
+백엔드의 비동기 주문·결제 처리를 사용자가 이해할 수 있는 화면 상태로 연결하는 데 중점을 뒀습니다. 결제 세션 준비, 결제 입력, 주문 확정 대기를 구분하고, 최종 성공 여부는 Order 서비스의 상태로 판단합니다.
 
----
+## 구현 범위
 
-## 프로젝트 하이라이트 & 핵심 구현 포인트
+| 영역 | 주요 기능 / 경로 |
+|---|---|
+| 스토어프론트 | 홈, 카테고리 탐색 `/categories`, 카테고리별 상품 목록 `/categories/[categoryId]` |
+| 상품 목록·상세 | 키워드 검색, 브랜드·가격 필터, 정렬·페이지 이동, `/products/[productId]`의 옵션·Variant 선택 |
+| 장바구니 | `/cart`, 비회원·회원 카트, 수량 변경·삭제, 카탈로그 동기화, 로그인 후 비회원 카트 병합 |
+| 체크아웃 | `/checkout`, 배송지 입력·주문 생성, 결제 준비·진행·성공·실패 화면 |
+| 결제 | Stripe Payment Element, Stub 결제 연동, 주문 상태 폴링 |
+| 관리자 | `/dashboard/admin` 하위 상품·카테고리·글로벌 옵션 그룹 관리, 상품·옵션 이미지 업로드 |
 
-단순한 UI 구현을 넘어, **성능**·**인증 보안**·**백엔드 MSA와의 안정적인 연동**에 초점을 맞췄습니다.
+## 연동 구조와 설계 선택
 
-
-| 영역       | 한 줄 요약                                    |
-| -------- | ----------------------------------------- |
-| BFF · 인증 | Gateway 단일 진입, SESSION·CSRF, JWT 브라우저 미노출 |
-| 이미지 업로드  | Canvas 리사이즈 후 Presigned URL 병렬 PUT        |
-| 타입 안전성   | Zod + React Hook Form, API 응답 런타임 검증      |
-| 관리자 UX   | Radix/shadcn, TanStack Table 기반 대시보드      |
-
-
-### 1. BFF 기반 안전한 인증 아키텍처
-
-**문제**  
-브라우저가 MSA API에 직접 호출하면 CORS 설정이 복잡해지고, JWT를 `localStorage` 등에 두면 XSS에 노출될 수 있습니다. Gateway OAuth2 흐름과도 맞추기 어렵습니다.
-
-**적용**
-
-- 모든 API 호출을 `**http://localhost:9000`(Gateway)** 로 통일 — Next.js는 Gateway 뒤 SPA로만 노출
-- 브라우저는 **JWT를 직접 다루지 않음** — `SESSION_edge-service`, `XSRF-TOKEN` 쿠키만 사용
-- `fetchWrapper`가 Server Component·Server Action에서 **세션·CSRF 쿠키를 forward**해 인증 상태 유지
-- `AdminDashboardLayout`에서 `GET /authentication` + `ADMIN` 역할 검사 후 어드민 진입
-
-### 2. 브라우저 리사이징 · Presigned URL 병렬 업로드
-
-**문제**  
-고해상도 이미지를 API 서버로 올리면 업로드 시간·메모리·타임아웃 부담이 크고, 백엔드와 스토리지 대역폭을 낭비합니다.
-
-**적용**
-
-- 업로드 전 `**resizeImageIfNeeded`(Canvas API)** 로 WebP/JPEG 압축·리사이징
-- `presign` → `**putFileToPresignedUrl`**(쿠키 없이 외부 PUT) → `commit` 3단계 파이프라인
-- `**mapConcurrent` / `forEachConcurrent**` 로 다중 파일 병렬 업로드
-- 바이너리는 **Cloudflare R2로 직접 전송** — 애플리케이션 서버 경유 없음
-
-### 3. End-to-End 타입 안전성
-
-**문제**  
-상품·옵션·카테고리 폼은 필드가 많고, API 응답 shape이 어긋나면 런타임에서만 오류가 드러나 디버깅이 어렵습니다.
-
-**적용**
-
-- **Zod + React Hook Form**으로 폼 입력·제출 데이터 검증
-- `AuthUserInfoSchema` 등으로 **API 응답을 `safeParse`** — 잘못된 payload 조기 차단
-- `services/`·`common/schemas/`에 DTO·스키마를 모아 **계층 간 계약을 명시**
-
-### 4. 모던 UI/UX · 관리자 대시보드
-
-**문제**  
-카테고리·상품·옵션·Variant·이미지를 한 화면 흐름으로 다루려면 접근성·테이블 성능·복잡 폼 UX를 함께 고려해야 합니다.
-
-**적용**
-
-- **Radix UI + shadcn/ui** — 키보드·포커스 등 접근성(a11y) 기본 제공
-- **TanStack Table** — 관리자 목록 정렬·페이지네이션·컬럼 정의
-- **Route Group** `(home)` / `(dashboard)` 로 스토어프론트와 어드민 레이아웃 분리
-- 상품 상세는 **탭(옵션·Variant·이미지)** ·드래그앤드롭(`react-dropzone`)으로 작업 단위 분리
-
----
-
-## 기술 스택
-
-- **Framework:** Next.js 15 (App Router), React 19
-- **Language:** TypeScript 5
-- **Styling:** Tailwind CSS 3, tailwind-merge, next-themes (다크 모드)
-- **UI:** Radix UI, shadcn/ui 패턴 컴포넌트 (`components/ui`)
-- **Forms / Table:** React Hook Form, Zod, TanStack Table
-- **Upload:** react-dropzone, 클라이언트 이미지 리사이즈·병렬 업로드
-- **Package manager:** [Bun](https://bun.sh) (빠른 의존성 설치 및 실행)
-
----
-
-## 주요 화면
-
-
-| 경로                               | 설명                          |
-| -------------------------------- | --------------------------- |
-| `/`                              | 홈 — Hero, Featured Products |
-| `/profile`                       | 프로필                         |
-| `/dashboard/admin`               | 관리자 대시보드 (ADMIN 전용)         |
-| `/dashboard/admin/categories`    | 카테고리 CRUD                   |
-| `/dashboard/admin/products`      | 상품·Variant·옵션·이미지 관리        |
-| `/dashboard/admin/option-groups` | 글로벌 옵션 그룹·옵션 값 관리           |
-
-
----
-
-## 저장소 구조
-
-```
-ecommerce-frontend/
-├── src/
-│   ├── app/                    # App Router 페이지·레이아웃
-│   │   ├── (home)/             # 스토어프론트
-│   │   └── (dashboard)/        # 대시보드·어드민
-│   ├── modules/                # 기능별 UI (home, dashboard)
-│   ├── services/               # productService, categoryService 등
-│   ├── common/                 # fetchWrapper, authService, schemas
-│   ├── components/ui/          # shadcn UI primitives
-│   └── lib/                    # productImageUpload, utils
-├── public/
-├── package.json
-└── bun.lock
+```mermaid
+flowchart LR
+  Browser["Browser :9000"] --> Gateway["Gateway :9000<br/>OAuth2 · Redis Session · CSRF"]
+  Gateway --> Next["Next.js :3000<br/>Server Components / Server Actions"]
+  Next -->|"공개 조회 / 세션·CSRF 전달"| Gateway
+  Gateway --> Product["Product :9002"]
+  Gateway --> Order["Order :9003"]
+  Gateway --> Payment["Payment :9004"]
+  Browser -->|"presigned PUT"| R2["Cloudflare R2"]
+  Browser -->|"Payment Element"| Stripe["Stripe"]
 ```
 
----
+브라우저 진입점은 `http://localhost:9000`입니다. Gateway가 화면 요청을 Next.js로 프록시하고, Next.js의 서버 측 서비스가 Gateway API를 호출합니다. 직접 `:3000`에 접속하면 로그인 리다이렉트와 세션·CSRF 흐름이 달라질 수 있습니다.
 
-## 사전 요구 사항
+### 공개 조회와 사용자별 요청 분리
 
+| 요청 유형 | 구현 | 설계 이유 |
+|---|---|---|
+| 공개 상품·카테고리 | [publicGet](src/common/services/publicFetch.ts) | 사용자 쿠키 없이 조회하여 공용 응답의 캐시 경로 분리 |
+| 카트·주문·결제·관리자 | [fetchWrapper](src/common/services/fetchWrapper.ts) | 요청 쿠키와 `XSRF-TOKEN`을 Gateway의 `Cookie`·`X-XSRF-TOKEN` 헤더로 전달 |
+| 비회원 카트 변경·병합 | [cartService](src/services/cartService.ts) | Server Action에서 응답 `Set-Cookie`를 전달해 비회원 식별 쿠키의 생성·삭제 반영 |
+| 이미지 바이너리 업로드 | [productImageUpload](src/lib/productImageUpload.ts) | 백엔드에서 URL 발급 → R2 직접 PUT → 백엔드 commit. R2에는 Gateway 세션 쿠키를 보내지 않음 |
 
-| 도구                    | 용도                                                                                                                     |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| [Bun](https://bun.sh) | 의존성 설치·개발 서버                                                                                                           |
-| 백엔드 인프라 + 서비스         | [ecommerce-msa](https://github.com/Youngwook-Jeon/ecommerce-msa) README 참고 (Docker, `edge-service`, `product-service`) |
+카트·주문·결제 조회는 `no-store`로 최신 사용자 상태를 읽습니다. 공개 조회는 Zod 스키마로 외부 응답을 검증한 뒤 타입이 있는 View Model로 UI에 전달합니다.
 
+상품 상세는 프로덕션에서 900초, 카테고리 계층은 3,600초의 재검증 주기를 사용합니다. 개발 모드에서는 해당 캐시 경로를 `no-store`로 전환합니다. 상품 상세의 metadata·page 조회는 React `cache`로 요청 내 중복을 줄입니다. 설정은 [storefrontCache](src/common/constants/storefrontCache.ts)에 모았습니다.
 
----
+백엔드 Redis 캐시와 Next.js 캐시는 별개입니다. 백엔드의 캐시 무효화가 Next.js 캐시를 즉시 갱신한다는 보장은 없으며, 주문 시 가격·재고는 백엔드가 다시 검증합니다.
+
+### 비동기 결제를 화면 상태로 표현
+
+| 단계 / 관찰 상태 | 화면 동작 | 백엔드와의 관계 |
+|---|---|---|
+| 주문 생성 | `/checkout/processing/[orderId]`로 이동 | 재고 예약 후 `PENDING_PAYMENT` 주문 생성 |
+| 결제 세션 준비 | client secret을 1초 간격으로 재조회, 최대 약 30초 | `order.created`의 CDC 전달·Payment 세션 생성 지연 허용. 404는 아직 준비되지 않은 상태로 취급 |
+| Stripe 결제 입력 | Payment Element 표시 | 브라우저 결제 결과 뒤에도 주문 확정 대기 |
+| Stub 결제 | 결제 입력을 생략하고 주문 상태 조회 | 로컬 provider의 결과를 같은 SAGA 경로로 확인 |
+| `PENDING_PAYMENT` | 1.5초 간격으로 주문 조회, 최대 약 60초 | 결제 완료와 주문 확정 사이의 시간차 표현 |
+| `CONFIRMED` | `/checkout/confirmation/[orderId]`, 카트 배지 갱신 | 재고 확정과 주문 상태 반영이 완료된 결과 |
+| `CANCELLED` / `EXPIRED` | `/checkout/failed/[orderId]` | API에서 받은 종료 상태에 따른 화면 분기 |
+| 폴링 제한 시간 초과 | 대기 안내와 “Check again” 제공 | 화면의 대기 종료를 결제 실패·주문 취소로 간주하지 않음 |
+
+구현: [CheckoutProcessingClient](src/modules/checkout/ui/components/CheckoutProcessingClient.tsx) · [OrderStatusPoller](src/modules/checkout/ui/components/OrderStatusPoller.tsx) · [paymentService](src/services/paymentService.ts).
+
+프론트엔드는 주문을 직접 확정하지 않습니다. 백엔드의 환불·DLT·재조정 상태를 모두 표현하는 운영 화면은 아직 없으며, 상세 보상 경로는 백엔드 README의 SAGA 표를 참고하세요. `EXPIRED` 화면 분기가 존재하는 것이 백엔드의 자동 주문 만료 실행을 의미하지는 않습니다.
+
+## 기술 스택과 구조
+
+Next.js **15.1.7**, React **19**, TypeScript, Tailwind CSS 3, shadcn/Radix UI, React Hook Form·Zod, Stripe.js를 사용하며 패키지 관리는 **Bun**으로 통일합니다.
+
+```text
+src/
+├── app/                 # App Router 페이지·레이아웃·loading/error/not-found
+├── modules/             # catalog, cart, checkout, 관리자 등 기능별 UI·로직
+├── services/            # 도메인별 API 접근·Server Actions
+├── common/
+│   ├── services/        # fetchWrapper, publicFetch, 인증·쿠키 처리
+│   ├── schemas/         # API 응답·입력 Zod 스키마와 View Model
+│   └── constants/       # 스토어프론트 캐시 등 공통 설정
+├── components/ui/       # 공유 UI primitives
+└── lib/                 # 이미지 업로드·공통 유틸
+```
+
+Server Components로 초기 데이터를 읽고, 옵션 선택·폼·결제·폴링 같은 상호작용에 Client Components를 사용합니다. 변경 요청과 쿠키 처리는 Server Actions/서비스 계층에 모아 UI에서 인증 전달 로직이 반복되지 않도록 합니다.
 
 ## 로컬 실행
 
-### 1. 백엔드 기동
-
-[ecommerce-msa](https://github.com/Youngwook-Jeon/ecommerce-msa) 저장소에서 Docker 인프라·`edge-service`·`product-service` 를 실행합니다.
-
-### 2. 프론트엔드
+Java 21·Docker 기반 백엔드와 Bun이 필요합니다. 아래 Make 명령은 두 저장소를 포함한 **워크스페이스 루트**에서 실행합니다.
 
 ```bash
-git clone https://github.com/Youngwook-Jeon/ecommerce-frontend.git
+# 최초 1회만 복사. 기존 설정 파일이 있다면 유지
+cp ecommerce-msa/.env.example ecommerce-msa/.env
+make check-prereqs
+make up
+
+# 별도 터미널에서 프론트엔드 실행
+make frontend
+```
+
+프론트엔드 디렉터리에서 직접 실행할 수도 있습니다.
+
+```bash
 cd ecommerce-frontend
 bun install
 bun run dev
 ```
 
-Next.js dev 서버는 `**http://localhost:3000**` 에 뜹니다.
+브라우저에서 `http://localhost:9000`에 접속합니다. 기본 백엔드 설정은 `PAYMENT_PROVIDER=stub`, `R2_ENABLED=false`로, 외부 결제·스토리지 자격 증명 없이 로컬 흐름을 확인할 수 있습니다. 실제 R2 업로드 검증은 별도 설정이 필요합니다.
 
-### 3. 브라우저 접속
+`make down`은 백엔드와 인프라를 중지합니다. 별도 터미널의 프론트엔드 개발 서버는 해당 터미널에서 종료합니다.
 
-`**http://localhost:9000**` (Gateway가 SPA로 프록시)
+### Stripe 테스트 결제
 
-직접 `:3000`만 열면 Gateway 세션·CSRF·OAuth 리다이렉트 흐름과 어긋날 수 있습니다.
+1. 백엔드 `ecommerce-msa/.env`에 `PAYMENT_PROVIDER=stripe`와 `STRIPE_API_KEY`를 설정합니다.
+2. 프론트엔드 `ecommerce-frontend/.env.local`에 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`를 설정합니다.
+3. 로그인된 Stripe CLI를 준비하고 워크스페이스에서 `make up` 또는 `make apps`를 실행합니다. 로컬 스크립트가 webhook secret을 프로세스 환경에 주입하고 포워딩을 시작합니다.
+4. 프론트엔드를 다시 실행한 뒤 체크아웃합니다.
 
-### 4. 관리자 로그인
+비공개 Stripe API 키와 webhook secret은 프론트엔드에 넣지 않습니다. `.env`·`.env.local`은 커밋하지 않습니다.
 
-어드민 패널(`/dashboard/admin/**`)은 Keycloak 로그인 후 `ADMIN` 역할이 필요합니다.
+### 관리자 로그인
 
+`/dashboard/admin/**`는 Keycloak 로그인과 `ADMIN` 역할이 필요합니다. 기본 로컬 Realm의 개발용 계정은 `lucas@lucas.com` / `password`입니다. 로그인은 Gateway에서 진행합니다.
 
-| 항목   | 값                 |
-| ---- | ----------------- |
-| 이메일  | `lucas@lucas.com` |
-| 비밀번호 | `password`        |
-
-
-로그인은 Gateway(`:9000`)에서 진행합니다. 로그인 후 관리자 메뉴로 이동하세요.
-
----
-
-## API 연동
-
-모든 백엔드 통신은 src/common/services/fetchWrapper.ts를 거치며, 자동으로 API Gateway로 향합니다.
-
-```
-http://localhost:9000/api/v1/product_service/...
-```
-
-예시 (`productService.ts`):
-
-- `GET api/v1/product_service/admin/queries/products` — 상품 목록
-- `POST api/v1/product_service/admin/products/{id}/images/presign-upload` — 업로드 URL 발급
-- `PUT` (presigned URL) — R2 직접 업로드
-- `POST .../images/commit` — 업로드 확정
-
-인증 상태 확인:
-
-- `GET http://localhost:9000/authentication` → `fetchWrapper` + Zod `AuthUserInfoSchema`
-
-CSRF 방어:
-
-- fetchWrapper는 모든 Mutation(POST, PUT, PATCH, DELETE) 요청 시 쿠키에 있는 XSRF-TOKEN을 읽어 헤더(X-XSRF-TOKEN)에 자동으로 삽입합니다.
-
----
-
-## 스크립트
+## 실행·검증 명령
 
 ```bash
-bun dev      # 개발 서버 (port 3000)
+# ecommerce-frontend 디렉터리
+bun run dev
+bun run lint
 bun run build
 bun run start
-bun run lint
 ```
 
----
+자동화된 프론트엔드 테스트 스위트는 아직 구성하지 않았습니다. lint·프로덕션 빌드 외에 다음 연동 시나리오를 수동 확인합니다.
 
-## 진행 현황 / 로드맵
+| 시나리오 | 확인할 결과 |
+|---|---|
+| 비로그인 상품 탐색 | 목록 필터·정렬·상세 옵션 선택, 접근 불가 상품의 오류 화면 |
+| 비회원 카트 → 로그인 | 카트 쿠키 유지, 회원 카트 병합과 배지 갱신 |
+| 체크아웃 중 가격·재고 변경 | 변경 내역을 검토한 뒤 다시 주문할 수 있는지 확인 |
+| Stub / Stripe 테스트 결제 | 처리 화면에서 실제 주문 상태를 따라 성공·실패 화면으로 이동 |
+| 결과 반영 지연 | 제한 시간 이후 실패로 단정하지 않고 재조회 제공 |
+| 관리자 이미지 업로드 | presign → R2 PUT → commit과 이미지 표시 확인 |
 
-- 스토어프론트 홈·네비게이션 레이아웃
-- Gateway 세션·CSRF 연동 (`fetchWrapper`)
-- 관리자 — 카테고리 / 상품 / 글로벌 옵션 그룹 CRUD
-- 상품 Variant·옵션 그룹·옵션 값 UI
-- Presigned URL 기반 상품·옵션 값 이미지 업로드
-- 스토어프론트 공개 상품 API 연동 (백엔드 `public/products` 완성 후)
-- 장바구니·주문·결제 UI
+## 트러블슈팅과 현재 제약
 
----
+| 증상 | 확인 사항 |
+|---|---|
+| 401 또는 로그인 반복 | `:9000` 접속 여부, Gateway·Keycloak·Redis 상태 |
+| 변경 요청 403 | `XSRF-TOKEN` 쿠키·`X-XSRF-TOKEN` 전달, 관리자 역할 |
+| 결제 세션 준비 지연 | Order·Payment 실행, Kafka Connect 커넥터 상태, provider session 작업 오류 |
+| 결제 뒤 주문 확정 지연 | `payment.completed` 소비, 재고 예약 만료, DLT·백엔드 재조정 상태 |
+| 관리자 변경이 공개 화면에 늦게 반영 | 프로덕션 Next.js 재검증 주기와 백엔드 캐시 확인 |
+| R2 업로드 실패 | 백엔드 R2 설정과 버킷 CORS의 `http://localhost:9000`·PUT 허용 여부 |
 
-## 트러블슈팅
-
-
-| 증상                            | 확인 사항                                                                                                            |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| API 401 / redirect loop       | `:9000` 으로 접속했는지, Gateway·Keycloak 기동 여부                                                                         |
-| 어드민 접근 시 홈으로 이동               | `lucas@lucas.com` 계정·`ADMIN` 역할                                                                                  |
-| 403 Forbidden (POST/PUT 요청 시) | `XSRF-TOKEN` 쿠키·`X-XSRF-TOKEN` 헤더 전달 (`fetchWrapper`)                                                            |
-| 이미지 업로드 실패                    | 백엔드에 주입된 Cloudflare R2 환경 변수가 올바른지, R2 버킷의 CORS 설정에 [http://localhost:9000이](http://localhost:9000이) 허용되어 있는지 여부 |
-
-
----
-
-## 라이선스
-
-개인 학습·포트폴리오 목적 프로젝트입니다.
-
-## Stripe Embedded Payment (checkout)
-
-Checkout payment uses Stripe **Payment Element** (Embedded) on `/checkout/processing/[orderId]`.
-
-1. Set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` in frontend `.env.local` (see `.env.example`).
-2. In `ecommerce-msa/.env` (see `.env.example`):
-   - `PAYMENT_PROVIDER=stripe`
-   - `STRIPE_API_KEY=sk_test_...` (Dashboard secret key — **not** `STRIPE_SECRET_KEY`)
-   - Do **not** paste `STRIPE_WEBHOOK_SECRET` manually — `make up` / `make apps` runs  
-     `stripe listen --print-secret`, injects the CLI `whsec_`, and starts listen in the background.
-3. With `PAYMENT_PROVIDER=stub` (default), the processing page skips Elements and only polls order status.
-
+Gateway 주소는 현재 [fetchWrapper](src/common/services/fetchWrapper.ts)의 `BASE_API_URL`에 로컬 주소로 지정돼 있습니다. 배포 시 서버 간 접근 주소와 공개 origin을 환경에 맞게 분리해야 합니다. 브라우저 E2E 테스트와 환불·운영 상태 UI는 후속 개선 과제입니다.
