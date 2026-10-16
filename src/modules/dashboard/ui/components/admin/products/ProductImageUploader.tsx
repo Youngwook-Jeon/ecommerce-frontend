@@ -45,14 +45,14 @@ const MAX_BYTES = 10 * 1024 * 1024;
 
 export interface ProductImageUploaderProps {
   productId: string;
+  expectedVersion: number;
   /** When set, uploads target this product option value instead of the product. */
   productOptionValueId?: string;
   /** Expected sorted by `sortOrder` ascending; will be re-sorted defensively. */
   images: ReadProductImageVm[];
   onImagesUpdated: () => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
   disabled?: boolean;
-  /** Max simultaneous presign + PUT + commit pipelines (default 3). */
-  maxConcurrentUploads?: number;
   /** Max parallel `resizeImageIfNeeded` calls (default 4). */
   maxConcurrentCompression?: number;
   title?: string;
@@ -72,11 +72,12 @@ function summarizeRejections(rejections: FileRejection[]): string {
 
 export function ProductImageUploader({
   productId,
+  expectedVersion,
   productOptionValueId,
   images,
   onImagesUpdated,
+  onBusyChange,
   disabled = false,
-  maxConcurrentUploads = 3,
   maxConcurrentCompression = 4,
   title = "Product Images",
   className,
@@ -130,6 +131,9 @@ export function ProductImageUploader({
   }, [displayImages, sortedImages]);
 
   const isBatchBusy = batchPhase !== "idle";
+  useEffect(() => {
+    onBusyChange?.(isBatchBusy || isSavingImageOrder || deletingImageId !== null);
+  }, [isBatchBusy, isSavingImageOrder, deletingImageId, onBusyChange]);
   const dropDisabled = disabled || isBatchBusy;
 
   const isOptionValueScope = productOptionValueId != null && productOptionValueId !== "";
@@ -196,10 +200,13 @@ export function ProductImageUploader({
       setBatchPhase("uploading");
       setBatchProgress({ done: 0, total: compressed.length });
 
+      let batchVersion = expectedVersion;
+      let commitFailed = false;
       const outcomes = await forEachConcurrent(
         compressed,
-        maxConcurrentUploads,
+        1,
         async (file, batchIdx) => {
+          if (commitFailed) throw new Error("The previous change failed. Reload the product before continuing.");
           const sortOrder = baseSort + batchIdx;
           const role: "MAIN" | "GALLERY" =
             baseSort === 0 && batchIdx === 0 ? "MAIN" : "GALLERY";
@@ -241,17 +248,19 @@ export function ProductImageUploader({
                 fileSize: file.size,
                 role,
                 sortOrder,
-              })
+              }, batchVersion)
             : await commitProductImage(productId, {
                 objectKey: presignResult.data.objectKey,
                 contentType: file.type,
                 fileSize: file.size,
                 role,
                 sortOrder,
-              });
+              }, batchVersion);
           if (!commitResult.success) {
+            commitFailed = true;
             throw new Error(commitResult.message);
           }
+          batchVersion += 1;
 
           setBatchProgress((p) => ({
             total: p.total,
@@ -295,8 +304,8 @@ export function ProductImageUploader({
       isOptionValueScope,
       sortedImages.length,
       maxConcurrentCompression,
-      maxConcurrentUploads,
       onImagesUpdated,
+      expectedVersion,
       toast,
     ]
   );
@@ -349,10 +358,10 @@ export function ProductImageUploader({
     const result = isOptionValueScope
       ? await reorderOptionValueImages(productId, productOptionValueId, {
           orderedImageIds: displayImages.map((x) => x.id),
-        })
+        }, expectedVersion)
       : await reorderProductImages(productId, {
           orderedImageIds: displayImages.map((x) => x.id),
-        });
+        }, expectedVersion);
     if (!result.success) {
       toast({ variant: "destructive", title: "Reorder failed", description: result.message });
       setIsSavingImageOrder(false);
@@ -369,8 +378,8 @@ export function ProductImageUploader({
   async function onDeleteImage(imageId: string) {
     setDeletingImageId(imageId);
     const result = isOptionValueScope
-      ? await deleteOptionValueImage(productId, productOptionValueId, imageId)
-      : await deleteProductImage(productId, imageId);
+      ? await deleteOptionValueImage(productId, productOptionValueId, imageId, expectedVersion)
+      : await deleteProductImage(productId, imageId, expectedVersion);
     if (!result.success) {
       toast({ variant: "destructive", title: "Delete failed", description: result.message });
       setDeletingImageId(null);

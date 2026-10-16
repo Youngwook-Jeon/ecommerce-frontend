@@ -153,6 +153,7 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
       });
       setDetail({
         id: newId,
+        version: 1,
         categoryId: values.categoryId,
         name: values.name,
         description: values.description,
@@ -365,6 +366,7 @@ export function CreateProductForm({ isOpen, onClose }: CreateProductFormProps) {
             {createdProductId ? (
               <ProductImageUploader
                 productId={createdProductId}
+                expectedVersion={detail?.version ?? 0}
                 images={sortedImages}
                 onImagesUpdated={async () => {
                   await reloadProductDetail(createdProductId);

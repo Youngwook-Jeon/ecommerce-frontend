@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useToast } from "@/hooks/use-toast";
@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { AdminProductDtoVm, deleteProduct } from "@/services/productService";
+import { AdminProductDtoVm, deleteProduct, getAdminProductDetail } from "@/services/productService";
 
 interface DeleteProductDialogProps {
   product: AdminProductDtoVm | null;
@@ -28,15 +28,34 @@ export function DeleteProductDialog({
   isOpen,
   onClose,
 }: DeleteProductDialogProps) {
+  const [snapshotName, setSnapshotName] = useState("");
+  const [version, setVersion] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
+  useEffect(() => {
+    let cancelled = false;
+    setVersion(null);
+    setSnapshotName("");
+    if (isOpen && product) {
+      getAdminProductDetail(product.id).then((detail) => {
+        if (!cancelled && detail) {
+          setVersion(detail.version);
+          setSnapshotName(detail.name);
+        } else if (!cancelled) {
+          toast({ variant: "destructive", title: "Failed to load product", description: "Reopen this dialog to load the latest product." });
+        }
+      });
+    }
+    return () => { cancelled = true; };
+  }, [isOpen, product, toast]);
+
   const handleDelete = async () => {
-    if (!product) return;
+    if (!product || version === null) return;
 
     setIsDeleting(true);
-    const result = await deleteProduct(product.id);
+    const result = await deleteProduct(product.id, version);
 
     if (result.success) {
       toast({
@@ -62,7 +81,7 @@ export function DeleteProductDialog({
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
             This action will mark the product{" "}
-            <span className="font-semibold">&quot;{product?.name}&quot;</span> as
+            <span className="font-semibold">&quot;{snapshotName || product?.name}&quot;</span> as
             deleted.
           </AlertDialogDescription>
         </AlertDialogHeader>
@@ -71,7 +90,7 @@ export function DeleteProductDialog({
           <AlertDialogAction asChild>
             <Button
               onClick={handleDelete}
-              disabled={isDeleting}
+              disabled={isDeleting || version === null}
               variant="destructive"
             >
               {isDeleting ? "Deleting..." : "Continue"}

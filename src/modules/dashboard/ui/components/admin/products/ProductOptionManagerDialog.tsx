@@ -439,7 +439,7 @@ export function ProductOptionManagerDialog({
       optionGroupId: selectedGlobalGroupId,
       required,
       optionValues,
-    });
+    }, detail?.version ?? 0);
     setIsSubmittingGroup(false);
 
     if (!result.success) {
@@ -487,8 +487,7 @@ export function ProductOptionManagerDialog({
     const result = await addProductOptionValues(
       product.id,
       selectedProductOptionGroupId,
-      { optionValues }
-    );
+      { optionValues }, detail?.version ?? 0);
     setIsSubmittingValues(false);
 
     if (!result.success) {
@@ -520,7 +519,7 @@ export function ProductOptionManagerDialog({
     }
 
     setIsDeletingGroupId(productOptionGroupId);
-    const result = await deleteProductOptionGroup(product.id, productOptionGroupId);
+    const result = await deleteProductOptionGroup(product.id, productOptionGroupId, detail?.version ?? 0);
     setIsDeletingGroupId(null);
 
     if (!result.success) {
@@ -551,7 +550,7 @@ export function ProductOptionManagerDialog({
     }
 
     setIsDeletingValueId(productOptionValueId);
-    const result = await deleteProductOptionValue(product.id, productOptionValueId);
+    const result = await deleteProductOptionValue(product.id, productOptionValueId, detail?.version ?? 0);
     setIsDeletingValueId(null);
 
     if (!result.success) {
@@ -589,7 +588,7 @@ export function ProductOptionManagerDialog({
     if (!product || !isDraftProduct || orderedGroups.length === 0) return;
     setIsReordering(true);
     const orderedProductOptionGroupIds = orderedGroups.map((group) => group.productOptionGroupId);
-    const result = await reorderProductOptionGroups(product.id, orderedProductOptionGroupIds);
+    const result = await reorderProductOptionGroups(product.id, orderedProductOptionGroupIds, detail?.version ?? 0);
     if (!result.success) {
       setIsReordering(false);
       toast({
@@ -631,7 +630,7 @@ export function ProductOptionManagerDialog({
           selectedProductOptionValueIds,
         },
       ],
-    });
+    }, detail?.version ?? 0);
     setIsSubmittingVariant(false);
 
     if (!result.success) {
@@ -695,7 +694,7 @@ export function ProductOptionManagerDialog({
         stockQuantity: bulkVariantStockQuantity,
         selectedProductOptionValueIds,
       })),
-    });
+    }, detail?.version ?? 0);
     setIsSubmittingVariantBulk(false);
 
     if (!result.success) {
@@ -732,7 +731,7 @@ export function ProductOptionManagerDialog({
     const result = await updateProductVariant(product.id, variantId, {
       stockQuantity,
       status,
-    });
+    }, detail?.version ?? 0);
     setIsUpdatingVariantId(null);
 
     if (!result.success) {
@@ -762,8 +761,7 @@ export function ProductOptionManagerDialog({
     const result = await updateProductOptionGroupVisual(
       product.id,
       productOptionGroupId,
-      drivesVariantImages
-    );
+      drivesVariantImages, detail?.version ?? 0);
     setIsUpdatingVisualGroupId(null);
 
     if (!result.success) {
@@ -797,7 +795,7 @@ export function ProductOptionManagerDialog({
     if (!window.confirm("This variant will be soft-deleted. Continue?")) return;
 
     setIsDeletingVariantId(variantId);
-    const result = await deleteProductVariant(product.id, variantId);
+    const result = await deleteProductVariant(product.id, variantId, detail?.version ?? 0);
     setIsDeletingVariantId(null);
 
     if (!result.success) {
@@ -941,6 +939,7 @@ export function ProductOptionManagerDialog({
           images={optionValueImagesForDialog}
           isOpen={optionValueImagesTarget !== null}
           onClose={() => setOptionValueImagesTarget(null)}
+          expectedVersion={detail?.version ?? 0}
           onImagesUpdated={refreshData}
           disabled={!canAddOptionValues}
         />

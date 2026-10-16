@@ -12,6 +12,7 @@ import { ProductImageUploader } from "./ProductImageUploader";
 
 interface OptionValueImagesDialogProps {
   productId: string;
+  expectedVersion: number;
   productOptionValueId: string | null;
   label: string;
   images: ReadProductImageVm[];
@@ -23,6 +24,7 @@ interface OptionValueImagesDialogProps {
 
 export function OptionValueImagesDialog({
   productId,
+  expectedVersion,
   productOptionValueId,
   label,
   images,
@@ -44,6 +46,7 @@ export function OptionValueImagesDialog({
         {productOptionValueId ? (
           <ProductImageUploader
             productId={productId}
+            expectedVersion={expectedVersion}
             productOptionValueId={productOptionValueId}
             images={images}
             disabled={disabled}

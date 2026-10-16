@@ -66,6 +66,7 @@ export function UpdateProductForm({
   isOpen,
   onClose,
 }: UpdateProductFormProps) {
+  const [imagesBusy, setImagesBusy] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [detail, setDetail] = useState<AdminProductDetailVm | null>(null);
 
@@ -92,6 +93,8 @@ export function UpdateProductForm({
   async function reloadProductDetail(targetProductId: string) {
     const data = await fetchAdminProductDetail(targetProductId);
     setDetail(data);
+    form.reset({ name: data.name, description: data.description, basePrice: data.basePrice,
+      brand: data.brand, categoryId: data.categoryId ?? 1 });
   }
 
   useEffect(() => {
@@ -135,7 +138,7 @@ export function UpdateProductForm({
   }, [isOpen, productId, form, toast, onClose]);
 
   async function onSubmit(values: UpdateProductFormValues) {
-    if (!productId) return;
+    if (!productId || !detail) return;
 
     const payload: UpdateProductRequest = {
       name: values.name,
@@ -145,7 +148,7 @@ export function UpdateProductForm({
       categoryId: values.categoryId,
     };
 
-    const result = await updateProduct(productId, payload);
+    const result = await updateProduct(productId, payload, detail.version);
 
     if (result.success) {
       toast({
@@ -163,10 +166,10 @@ export function UpdateProductForm({
     }
   }
 
-  const isDisabled = isLoadingDetail || isSubmitting;
+  const isDisabled = isLoadingDetail || isSubmitting || imagesBusy || !detail;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !imagesBusy && !isSubmitting) onClose(); }}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>Edit Product</DialogTitle>
@@ -322,8 +325,10 @@ export function UpdateProductForm({
             {productId ? (
               <ProductImageUploader
                 productId={productId}
+                expectedVersion={detail?.version ?? 0}
                 images={sortedImages}
-                disabled={isDisabled}
+                disabled={isDisabled || form.formState.isDirty}
+                onBusyChange={setImagesBusy}
                 onImagesUpdated={async () => {
                   await reloadProductDetail(productId);
                   router.refresh();
@@ -332,8 +337,12 @@ export function UpdateProductForm({
             ) : null}
 
             <DialogFooter>
+              <Button type="button" variant="secondary" disabled={isDisabled}
+                onClick={() => productId && reloadProductDetail(productId)}>
+                Reload latest product
+              </Button>
               <DialogClose asChild>
-                <Button type="button" variant="secondary" disabled={isSubmitting}>
+                <Button type="button" variant="secondary" disabled={isDisabled}>
                   Cancel
                 </Button>
               </DialogClose>

@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AdminProductDtoVm, updateProductStatus } from "@/services/productService";
+import { AdminProductDtoVm, updateProductStatus, getAdminProductDetail } from "@/services/productService";
 
 type ProductStatusValue = "ACTIVE" | "INACTIVE" | "OUT_OF_STOCK";
 
@@ -39,20 +39,29 @@ export function UpdateProductStatusDialog({
   const router = useRouter();
   const { toast } = useToast();
 
+  const [version, setVersion] = useState<number | null>(null);
   const [status, setStatus] = useState<ProductStatusValue>("ACTIVE");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || !product) return;
-    const next = (product.status as ProductStatusValue) ?? "ACTIVE";
-    setStatus(next);
+    let cancelled = false;
+    setVersion(null);
+    if (isOpen && product) {
+      getAdminProductDetail(product.id).then((detail) => {
+        if (!cancelled && detail) {
+          setVersion(detail.version);
+          setStatus(detail.status as ProductStatusValue);
+        }
+      });
+    }
+    return () => { cancelled = true; };
   }, [isOpen, product]);
 
   async function onSubmit() {
-    if (!product) return;
+    if (!product || version === null) return;
 
     setIsSubmitting(true);
-    const result = await updateProductStatus(product.id, { status });
+    const result = await updateProductStatus(product.id, { status }, version);
     setIsSubmitting(false);
 
     if (result.success) {
@@ -87,7 +96,7 @@ export function UpdateProductStatusDialog({
           <Select
             value={status}
             onValueChange={(value) => setStatus(value as ProductStatusValue)}
-            disabled={!product || isSubmitting}
+            disabled={!product || isSubmitting || version === null}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select status" />
@@ -102,11 +111,11 @@ export function UpdateProductStatusDialog({
 
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="secondary" disabled={isSubmitting}>
+            <Button type="button" variant="secondary" disabled={isSubmitting || version === null}>
               Cancel
             </Button>
           </DialogClose>
-          <Button type="button" onClick={onSubmit} disabled={!product || isSubmitting}>
+          <Button type="button" onClick={onSubmit} disabled={!product || isSubmitting || version === null}>
             {isSubmitting ? "Updating..." : "Update Status"}
           </Button>
         </DialogFooter>

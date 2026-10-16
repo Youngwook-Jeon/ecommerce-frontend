@@ -1,5 +1,6 @@
 "use server";
 
+import { z } from "zod";
 import { fetchWrapper } from "../common/services/fetchWrapper";
 import { getErrorMessage } from "@/lib/utils";
 import type {
@@ -7,6 +8,13 @@ import type {
   ProductImagePresignResponseVm,
   ReadProductImageVm,
 } from "@/types/productImage";
+
+function withExpectedVersion(path: string, expectedVersion: number): string {
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1) {
+    throw new Error("Reload the latest product before editing.");
+  }
+  return `${path}?expectedVersion=${expectedVersion}`;
+}
 
 // ----- 어드민용 제품 조회 API -----
 export interface AdminProductDtoVm {
@@ -40,6 +48,7 @@ export interface ProductOptionGroupVm {
 }
 
 export interface AdminProductDetailVm extends AdminProductDtoVm {
+  version: number;
   description: string;
   createdAt: string;
   updatedAt: string;
@@ -142,7 +151,9 @@ export async function getAdminProductDetail(
       return null;
     }
 
-    return (await response.json()) as AdminProductDetailVm;
+    const data = await response.json();
+    const version = z.number().int().positive().safe().parse(data.version);
+    return { ...data, version } as AdminProductDetailVm;
   } catch (error) {
     console.error("Exception in getAdminProductDetail: ", error);
     return null;
@@ -265,8 +276,8 @@ export interface UpdateProductVariantRequest {
 }
 
 export async function createProduct(data: CreateProductRequest) {
-  const { status: _status, ...rest } = data;
-  const requestBody: Record<string, unknown> = { ...rest };
+  const requestBody: Record<string, unknown> = { ...data };
+  delete requestBody.status;
   if (data.mainImageUrl != null && data.mainImageUrl !== "") {
     requestBody.mainImageUrl = data.mainImageUrl;
   }
@@ -294,11 +305,12 @@ export async function createProduct(data: CreateProductRequest) {
 
 export async function updateProduct(
   productId: string,
-  data: UpdateProductRequest
+  data: UpdateProductRequest,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.put(
-      `api/v1/product_service/admin/products/${productId}`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}`, expectedVersion),
       data
     );
 
@@ -339,11 +351,12 @@ export async function requestProductImageUploadUrl(
 
 export async function commitProductImage(
   productId: string,
-  payload: ProductImageCommitRequestBody
+  payload: ProductImageCommitRequestBody,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.post(
-      `api/v1/product_service/admin/products/${productId}/images/commit`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/images/commit`, expectedVersion),
       payload
     );
     const responseData = (await response.json()) as ProductImageCommitResponseVm & {
@@ -359,14 +372,16 @@ export async function commitProductImage(
   }
 }
 
-export async function deleteProductImage(productId: string, imageId: string) {
+export async function deleteProductImage(productId: string, imageId: string,
+  expectedVersion: number
+) {
   try {
     const response = await fetchWrapper.del(
-      `api/v1/product_service/admin/products/${productId}/images/${imageId}`
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/images/${imageId}`, expectedVersion)
     );
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || "Failed to delete product image.");
+      const errorBody = await response.json().catch(() => null) as { message?: string } | null;
+      throw new Error(errorBody?.message || "Failed to delete product image.");
     }
     return { success: true as const };
   } catch (error: unknown) {
@@ -377,11 +392,12 @@ export async function deleteProductImage(productId: string, imageId: string) {
 
 export async function reorderProductImages(
   productId: string,
-  payload: ProductImageReorderRequestBody
+  payload: ProductImageReorderRequestBody,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `api/v1/product_service/admin/products/${productId}/images/reorder`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/images/reorder`, expectedVersion),
       payload
     );
     const responseData = (await response.json()) as ProductImageReorderResponseVm & {
@@ -427,11 +443,12 @@ export async function requestOptionValueImageUploadUrl(
 export async function commitOptionValueImage(
   productId: string,
   productOptionValueId: string,
-  payload: ProductImageCommitRequestBody
+  payload: ProductImageCommitRequestBody,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.post(
-      `${optionValueImagesBase(productId, productOptionValueId)}/commit`,
+      withExpectedVersion(`${optionValueImagesBase(productId, productOptionValueId)}/commit`, expectedVersion),
       payload
     );
     const responseData = (await response.json()) as ProductImageCommitResponseVm & {
@@ -450,15 +467,16 @@ export async function commitOptionValueImage(
 export async function deleteOptionValueImage(
   productId: string,
   productOptionValueId: string,
-  imageId: string
+  imageId: string,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.del(
-      `${optionValueImagesBase(productId, productOptionValueId)}/${imageId}`
+      withExpectedVersion(`${optionValueImagesBase(productId, productOptionValueId)}/${imageId}`, expectedVersion)
     );
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || "Failed to delete option value image.");
+      const errorBody = await response.json().catch(() => null) as { message?: string } | null;
+      throw new Error(errorBody?.message || "Failed to delete option value image.");
     }
     return { success: true as const };
   } catch (error: unknown) {
@@ -470,11 +488,12 @@ export async function deleteOptionValueImage(
 export async function reorderOptionValueImages(
   productId: string,
   productOptionValueId: string,
-  payload: ProductImageReorderRequestBody
+  payload: ProductImageReorderRequestBody,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `${optionValueImagesBase(productId, productOptionValueId)}/reorder`,
+      withExpectedVersion(`${optionValueImagesBase(productId, productOptionValueId)}/reorder`, expectedVersion),
       payload
     );
     const responseData = (await response.json()) as ProductImageReorderResponseVm & {
@@ -493,11 +512,12 @@ export async function reorderOptionValueImages(
 export async function updateProductOptionGroupVisual(
   productId: string,
   productOptionGroupId: string,
-  drivesVariantImages: boolean
+  drivesVariantImages: boolean,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/visual`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/visual`, expectedVersion),
       { drivesVariantImages }
     );
     const responseData = await response.json();
@@ -513,11 +533,12 @@ export async function updateProductOptionGroupVisual(
 
 export async function updateProductStatus(
   productId: string,
-  data: UpdateProductStatusRequest
+  data: UpdateProductStatusRequest,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `api/v1/product_service/admin/products/${productId}/status`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/status`, expectedVersion),
       data
     );
 
@@ -534,10 +555,12 @@ export async function updateProductStatus(
   }
 }
 
-export async function deleteProduct(productId: string) {
+export async function deleteProduct(productId: string,
+  expectedVersion: number
+) {
   try {
     const response = await fetchWrapper.del(
-      `api/v1/product_service/admin/products/${productId}`
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}`, expectedVersion)
     );
 
     if (!response.ok) {
@@ -554,11 +577,12 @@ export async function deleteProduct(productId: string) {
 
 export async function addProductOptionGroup(
   productId: string,
-  payload: AddProductOptionGroupRequest
+  payload: AddProductOptionGroupRequest,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.post(
-      `api/v1/product_service/admin/products/${productId}/option-groups`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-groups`, expectedVersion),
       payload
     );
 
@@ -577,11 +601,12 @@ export async function addProductOptionGroup(
 export async function addProductOptionValues(
   productId: string,
   productOptionGroupId: string,
-  payload: AddProductOptionValuesRequest
+  payload: AddProductOptionValuesRequest,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.post(
-      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/option-values`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/option-values`, expectedVersion),
       payload
     );
 
@@ -599,11 +624,12 @@ export async function addProductOptionValues(
 
 export async function deleteProductOptionGroup(
   productId: string,
-  productOptionGroupId: string
+  productOptionGroupId: string,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.del(
-      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}`
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}`, expectedVersion)
     );
 
     const responseData = await response.json();
@@ -619,11 +645,12 @@ export async function deleteProductOptionGroup(
 
 export async function deleteProductOptionValue(
   productId: string,
-  productOptionValueId: string
+  productOptionValueId: string,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.del(
-      `api/v1/product_service/admin/products/${productId}/option-values/${productOptionValueId}`
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-values/${productOptionValueId}`, expectedVersion)
     );
 
     const responseData = await response.json();
@@ -640,11 +667,12 @@ export async function deleteProductOptionValue(
 export async function changeProductOptionGroupStepOrder(
   productId: string,
   productOptionGroupId: string,
-  stepOrder: number
+  stepOrder: number,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/step-order`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-groups/${productOptionGroupId}/step-order`, expectedVersion),
       { stepOrder }
     );
 
@@ -666,11 +694,12 @@ export async function changeProductOptionGroupStepOrder(
 
 export async function reorderProductOptionGroups(
   productId: string,
-  orderedProductOptionGroupIds: string[]
+  orderedProductOptionGroupIds: string[],
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `api/v1/product_service/admin/products/${productId}/option-groups/reorder`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/option-groups/reorder`, expectedVersion),
       { orderedProductOptionGroupIds }
     );
 
@@ -687,11 +716,12 @@ export async function reorderProductOptionGroups(
 
 export async function addProductVariants(
   productId: string,
-  payload: AddProductVariantsRequest
+  payload: AddProductVariantsRequest,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.post(
-      `api/v1/product_service/admin/products/${productId}/variants`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/variants`, expectedVersion),
       payload
     );
 
@@ -710,11 +740,12 @@ export async function addProductVariants(
 export async function updateProductVariant(
   productId: string,
   productVariantId: string,
-  payload: UpdateProductVariantRequest
+  payload: UpdateProductVariantRequest,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.patch(
-      `api/v1/product_service/admin/products/${productId}/variants/${productVariantId}`,
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/variants/${productVariantId}`, expectedVersion),
       payload
     );
 
@@ -730,10 +761,12 @@ export async function updateProductVariant(
   }
 }
 
-export async function deleteProductVariant(productId: string, productVariantId: string) {
+export async function deleteProductVariant(productId: string, productVariantId: string,
+  expectedVersion: number
+) {
   try {
     const response = await fetchWrapper.del(
-      `api/v1/product_service/admin/products/${productId}/variants/${productVariantId}`
+      withExpectedVersion(`api/v1/product_service/admin/products/${productId}/variants/${productVariantId}`, expectedVersion)
     );
 
     const responseData = await response.json();

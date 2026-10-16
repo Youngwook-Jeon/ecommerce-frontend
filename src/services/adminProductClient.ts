@@ -1,9 +1,11 @@
+import { z } from "zod";
 import type { ReadProductImageVm } from "@/types/productImage";
 
 export type { ReadProductImageVm };
 
 export interface AdminProductDetailVm {
     id: string;
+    version: number;
     categoryId: number | null;
     name: string;
     description: string;
@@ -35,5 +37,7 @@ export async function fetchAdminProductDetail(
         );
     }
 
-    return (await res.json()) as AdminProductDetailVm;
+    const data = await res.json();
+    const version = z.number().int().positive().safe().parse(data.version);
+    return { ...data, version } as AdminProductDetailVm;
 }
