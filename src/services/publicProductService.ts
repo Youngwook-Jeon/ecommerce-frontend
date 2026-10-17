@@ -2,10 +2,8 @@ import { cache } from "react";
 
 import { STOREFRONT_PDP_REVALIDATE_SECONDS, resolveStorefrontPublicGetInit } from "@/common/constants/storefrontCache";
 import {
-  PublicProductFacetSchema,
-  PublicProductPageSchema,
-  type PublicProductFacetVm,
-  type PublicProductPageVm,
+  PublicProductSearchSchema,
+  type PublicProductSearchVm,
   type PublicProductSort,
 } from "@/common/schemas/publicProduct";
 import { PublicProductApiError } from "@/common/errors/publicProductApiError";
@@ -16,21 +14,14 @@ import {
 import { publicGet } from "@/common/services/publicFetch";
 
 const PUBLIC_PRODUCTS_PATH = "api/v1/product_service/public/products";
-const PUBLIC_PRODUCT_FACETS_PATH = "api/v1/product_service/public/products/facets";
+const PUBLIC_PRODUCT_SEARCH_PATH = `${PUBLIC_PRODUCTS_PATH}/search`;
 
-export interface GetPublicProductsParams {
-  categoryId: number;
+export interface SearchPublicProductsParams {
+  categoryId?: number;
   page?: number;
   size?: number;
   q?: string;
   sort?: PublicProductSort;
-  brands?: string[];
-  minPrice?: number;
-  maxPrice?: number;
-}
-
-export interface GetPublicProductFacetsParams {
-  categoryId: number;
   brands?: string[];
   minPrice?: number;
   maxPrice?: number;
@@ -70,96 +61,37 @@ function appendRepeatedSearchParam(
   }
 }
 
-/**
- * Storefront PLP — GET /public/products (via Gateway).
- */
-export async function getPublicProducts(
-  params: GetPublicProductsParams
-): Promise<PublicProductPageVm> {
+/** Cookie-free unified storefront search, including facets. */
+export async function searchPublicProducts(
+  params: SearchPublicProductsParams
+): Promise<PublicProductSearchVm> {
   const search = new URLSearchParams();
-  search.set("categoryId", String(params.categoryId));
+  appendSearchParam(search, "categoryId", params.categoryId);
   appendSearchParam(search, "page", params.page ?? 0);
   appendSearchParam(search, "size", params.size ?? 24);
   appendSearchParam(search, "q", params.q);
-  appendSearchParam(search, "sort", params.sort ?? "newest");
+  appendSearchParam(search, "sort", params.sort);
   appendRepeatedSearchParam(search, "brands", params.brands);
   appendSearchParam(search, "minPrice", params.minPrice);
   appendSearchParam(search, "maxPrice", params.maxPrice);
 
-  const url = `${PUBLIC_PRODUCTS_PATH}?${search.toString()}`;
-
+  let response: Response;
   try {
-    const response = await publicGet(url);
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(
-        `getPublicProducts failed: ${response.status} ${response.statusText}`,
-        errorBody
-      );
-      const message =
-        response.status === 404
-          ? "Category not found or not available."
-          : "Failed to fetch public products.";
-      throw new PublicProductApiError(message, response.status, errorBody);
-    }
-
-    const data = await response.json();
-    const parsed = PublicProductPageSchema.safeParse(data);
-
-    if (!parsed.success) {
-      console.error("Public product page validation failed:", parsed.error);
-      throw new Error("Invalid public product page response from API.");
-    }
-
-    return parsed.data;
+    response = await publicGet(`${PUBLIC_PRODUCT_SEARCH_PATH}?${search}`, { cache: "no-store" });
   } catch (error) {
-    console.error("getPublicProducts unexpected error:", error);
-    throw error;
+    console.error("Product search connection failed:", error);
+    throw new PublicProductApiError("Product search is temporarily unavailable.", 503);
   }
-}
-
-/**
- * Storefront PLP facets — GET /public/products/facets (via Gateway).
- */
-export async function getPublicProductFacets(
-  params: GetPublicProductFacetsParams
-): Promise<PublicProductFacetVm> {
-  const search = new URLSearchParams();
-  search.set("categoryId", String(params.categoryId));
-  appendRepeatedSearchParam(search, "brands", params.brands);
-  appendSearchParam(search, "minPrice", params.minPrice);
-  appendSearchParam(search, "maxPrice", params.maxPrice);
-  search.append("facet", "brand");
-  search.append("facet", "price");
-
-  const url = `${PUBLIC_PRODUCT_FACETS_PATH}?${search.toString()}`;
-
-  try {
-    const response = await publicGet(url);
-
-    if (!response.ok) {
-      const errorBody = await response.text();
-      const message =
-        response.status === 404
-          ? "Category not found or not available."
-          : "Failed to fetch public product facets.";
-      throw new PublicProductApiError(message, response.status, errorBody);
-    }
-
-    const data = await response.json();
-    const parsed = PublicProductFacetSchema.safeParse(data);
-
-    if (!parsed.success) {
-      console.error("Public product facets validation failed:", parsed.error);
-      throw new Error("Invalid public product facets response from API.");
-    }
-
-    return parsed.data;
-  } catch (error) {
-    console.error("getPublicProductFacets unexpected error:", error);
-    throw error;
+  if (!response.ok) {
+    const body = await response.text();
+    throw new PublicProductApiError("Failed to search products.", response.status, body);
   }
+  const parsed = PublicProductSearchSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    console.error("Public product search validation failed:", parsed.error);
+    throw new Error("Invalid public product search response from API.");
+  }
+  return parsed.data;
 }
 
 async function fetchPublicProductDetail(

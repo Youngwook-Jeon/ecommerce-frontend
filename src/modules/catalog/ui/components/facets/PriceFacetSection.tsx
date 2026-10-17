@@ -13,15 +13,6 @@ import {
 } from "@/modules/catalog/lib/plpPricePresets";
 import { parsePriceInput, type PlpSearchParams } from "@/modules/catalog/lib/plpSearchParams";
 
-const PRICE_PRESET_TO_FACET_BUCKET: Record<string, string | undefined> = {
-  any: undefined,
-  "under-25": "under_25",
-  "25-50": "25_50",
-  "50-100": "50_100",
-  "100-200": "100_200",
-  "200-plus": "200_plus",
-};
-
 interface PriceFacetSectionProps {
   facet?: PublicProductFacetGroupVm;
   plpParams: PlpSearchParams;
@@ -33,13 +24,6 @@ export function PriceFacetSection({
   plpParams,
   onApplyPrice,
 }: PriceFacetSectionProps) {
-  const priceCountMap = new Map(
-    (facet?.type === "range" ? facet.ranges : []).map((bucket) => [
-      bucket.id,
-      bucket.count,
-    ])
-  );
-
   const activePricePreset = matchPricePresetId(
     plpParams.minPrice,
     plpParams.maxPrice
@@ -82,6 +66,10 @@ export function PriceFacetSection({
     const min = parsePriceInput(customMin);
     const max = parsePriceInput(customMax);
 
+    if ((customMin.trim() !== "" && min === undefined) || (customMax.trim() !== "" && max === undefined)) {
+      setPriceError("Enter a nonnegative price with at most two decimal places.");
+      return;
+    }
     if (min != null && max != null && min > max) {
       setPriceError("Min must be ≤ max.");
       return;
@@ -96,6 +84,11 @@ export function PriceFacetSection({
   return (
     <section>
       <h3 className="mb-3 text-sm font-medium">{title}</h3>
+      {facet?.type === "range" && facet.min !== null && facet.max !== null ? (
+        <p className="mb-3 text-xs text-muted-foreground">
+          Matching prices: ${facet.min.toFixed(2)} – ${facet.max.toFixed(2)}
+        </p>
+      ) : null}
       <RadioGroup
         value={priceSelection}
         onValueChange={selectPricePreset}
@@ -109,15 +102,6 @@ export function PriceFacetSection({
               className="cursor-pointer font-normal"
             >
               {preset.label}
-              {preset.id !== "any" ? (
-                <span className="ml-1 text-xs text-muted-foreground">
-                  (
-                  {priceCountMap.get(
-                    PRICE_PRESET_TO_FACET_BUCKET[preset.id] ?? ""
-                  ) ?? 0}
-                  )
-                </span>
-              ) : null}
             </Label>
           </div>
         ))}

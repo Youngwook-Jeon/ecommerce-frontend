@@ -1,9 +1,6 @@
 "use client";
 
-import type {
-  PublicProductFacetVm,
-  PublicProductPageVm,
-} from "@/common/schemas/publicProduct";
+import type { PublicProductSearchVm } from "@/common/schemas/publicProduct";
 import type { PlpSearchParams } from "@/modules/catalog/lib/plpSearchParams";
 
 import { ProductActiveFilterChips } from "./ProductActiveFilterChips";
@@ -13,24 +10,22 @@ import { ProductPagination } from "./ProductPagination";
 import { ProductSortSelect } from "./ProductSortSelect";
 
 interface ProductCatalogLayoutProps {
-  categoryId: number;
+  categoryId?: number;
   plpParams: PlpSearchParams;
-  productPage: PublicProductPageVm;
-  facetData: PublicProductFacetVm;
+  productPage: PublicProductSearchVm;
 }
 
 export function ProductCatalogLayout({
   categoryId,
   plpParams,
   productPage,
-  facetData,
 }: ProductCatalogLayoutProps) {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(220px,260px)_1fr]">
       <ProductFilterSidebar
         categoryId={categoryId}
         plpParams={plpParams}
-        facetData={facetData}
+        facets={productPage.facets}
       />
 
       <div className="min-w-0">
@@ -52,6 +47,7 @@ export function ProductCatalogLayout({
         <ProductActiveFilterChips
           categoryId={categoryId}
           plpParams={plpParams}
+          facets={productPage.facets}
         />
 
         <ProductGrid products={productPage.content} />

@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  categoryProductsPath,
+  catalogProductsPath,
   mergePlpParams,
   type PlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
@@ -25,7 +25,7 @@ const SORT_OPTIONS: { value: PublicProductSort; label: string }[] = [
 ];
 
 interface ProductSortSelectProps {
-  categoryId: number;
+  categoryId?: number;
   plpParams: PlpSearchParams;
 }
 
@@ -36,12 +36,12 @@ export function ProductSortSelect({
   const router = useRouter();
 
   const options = SORT_OPTIONS.filter(
-    (option) => option.value !== "relevance"
+    (option) => option.value !== "relevance" || !!plpParams.q
   );
 
   const onSortChange = (sort: PublicProductSort) => {
     router.replace(
-      categoryProductsPath(categoryId, mergePlpParams(plpParams, { sort })),
+      catalogProductsPath(categoryId, mergePlpParams(plpParams, { sort })),
       { scroll: false }
     );
   };

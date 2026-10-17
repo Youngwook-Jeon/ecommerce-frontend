@@ -4,21 +4,21 @@ import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 
 import {
-  categoryProductsPath,
-  clearCategoryPlpFilters,
+  catalogProductsPath,
+  clearPlpFilters,
   mergePlpParams,
   type PlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 
-export function useCategoryPlpNavigation(
-  categoryId: number,
+export function useCatalogNavigation(
+  categoryId: number | undefined,
   plpParams: PlpSearchParams
 ) {
   const router = useRouter();
 
   const applyParams = useCallback(
     (next: PlpSearchParams) => {
-      router.replace(categoryProductsPath(categoryId, next), { scroll: false });
+      router.replace(catalogProductsPath(categoryId, next), { scroll: false });
     },
     [categoryId, router]
   );
@@ -31,7 +31,7 @@ export function useCategoryPlpNavigation(
   );
 
   const clearFilters = useCallback(() => {
-    applyParams(clearCategoryPlpFilters(plpParams));
+    applyParams(clearPlpFilters(plpParams));
   }, [applyParams, plpParams]);
 
   return { patchParams, clearFilters };

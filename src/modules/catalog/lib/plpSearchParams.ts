@@ -2,21 +2,11 @@ import {
   PublicProductSortSchema,
   type PublicProductSort,
 } from "@/common/schemas/publicProduct";
+import { PublicProductApiError } from "@/common/errors/publicProductApiError";
 
-const DEFAULT_SIZE = 24;
-const DEFAULT_SORT: PublicProductSort = "newest";
-
-/**
- * OpenSearch option facets: group key (e.g. `color`) → selected option value ids.
- * OR within a group; AND across groups.
- *
- * Not parsed from URL or sent to the API until the search backend ships.
- * Prefer `options[<groupKey>]=<valueId>` (repeated) or `optionValues=<id>` — align with backend at integration time.
- */
-export type PlpOptionFilters = Record<string, string[]>;
-
+export const MAX_SEARCH_WINDOW = 10000;
 export interface PlpSearchParams {
-  /** API page index (0-based). */
+  /** Both URL and API use a zero-based page index. */
   page: number;
   size: number;
   q?: string;
@@ -24,169 +14,80 @@ export interface PlpSearchParams {
   brands?: string[];
   minPrice?: number;
   maxPrice?: number;
-  /** Reserved for OpenSearch option facets — see {@link PlpOptionFilters}. */
-  optionFilters?: PlpOptionFilters;
 }
 
 type SearchParamValue = string | string[] | undefined;
-
-function first(value: SearchParamValue): string | undefined {
+function single(value: SearchParamValue): string | undefined {
   if (Array.isArray(value)) {
-    return value[0];
+    throw new PublicProductApiError("Repeated search parameter.", 400);
   }
   return value;
 }
-
-function parseOptionalPositiveInt(value: SearchParamValue): number | undefined {
-  const raw = first(value);
-  if (raw == null || raw.trim() === "") {
-    return undefined;
-  }
-  const parsed = Number(raw);
-  if (Number.isNaN(parsed) || parsed < 0) {
-    return undefined;
-  }
-  return parsed;
+function invalid(): never {
+  throw new PublicProductApiError("Invalid search parameters.", 400);
 }
-
-/**
- * Reads Next.js searchParams into API-ready PLP filters.
- * URL {@code page} is 1-based for humans; returned {@code page} is 0-based for the API.
- */
-export function parsePlpSearchParams(
-  raw: Record<string, SearchParamValue>
-): PlpSearchParams {
-  const urlPage = parseOptionalPositiveInt(raw.page);
-  const apiPage =
-    urlPage == null ? 0 : Math.max(0, urlPage <= 0 ? 0 : urlPage - 1);
-
-  const sizeRaw = parseOptionalPositiveInt(raw.size);
-  const size = sizeRaw == null || sizeRaw === 0 ? DEFAULT_SIZE : sizeRaw;
-
-  const sortRaw = first(raw.sort);
-  const sortParsed = PublicProductSortSchema.safeParse(sortRaw ?? DEFAULT_SORT);
-  const sort = sortParsed.success ? sortParsed.data : DEFAULT_SORT;
-
-  const q = first(raw.q)?.trim() || undefined;
-  const brandsRaw = raw.brands ?? raw.brand;
-  const brandCandidates = Array.isArray(brandsRaw)
-    ? brandsRaw
-    : brandsRaw != null
-      ? [brandsRaw]
-      : [];
-  const brands = Array.from(
-    new Set(brandCandidates.map((value) => value.trim()).filter((value) => value.length > 0))
-  );
-
-  const minPrice = parseOptionalPositiveInt(raw.minPrice);
-  const maxPrice = parseOptionalPositiveInt(raw.maxPrice);
-
-  return {
-    page: apiPage,
-    size,
-    q,
-    sort: q == null && sort === "relevance" ? DEFAULT_SORT : sort,
-    brands: brands.length > 0 ? brands : undefined,
-    minPrice,
-    maxPrice,
-  };
+function integer(value: SearchParamValue, fallback: number): number {
+  const raw = single(value);
+  if (raw === undefined) return fallback;
+  if (!/^\d+$/.test(raw)) invalid();
+  const number = Number(raw);
+  if (!Number.isSafeInteger(number)) invalid();
+  return number;
 }
-
-/** Builds query string (without leading {@code ?}) for /categories/[categoryId]. */
+function price(value: SearchParamValue): number | undefined {
+  const raw = single(value);
+  if (raw === undefined) return undefined;
+  if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) invalid();
+  const number = Number(raw);
+  if (!Number.isFinite(number)) invalid();
+  return number;
+}
+export function normalizeSearchTerm(value: string): string {
+  return value.normalize("NFC").trim().replace(/\s+/gu, " ");
+}
+export function parsePlpSearchParams(raw: Record<string, SearchParamValue>): PlpSearchParams {
+  const q = normalizeSearchTerm(single(raw.q) ?? "") || undefined;
+  if (q && Array.from(q).length > 200) invalid();
+  const page = integer(raw.page, 0);
+  const size = integer(raw.size, 24);
+  if (size < 1 || size > 48) invalid();
+  if (page * size + size > MAX_SEARCH_WINDOW) {
+    throw new PublicProductApiError("Search page limit exceeded.", 400,
+      JSON.stringify({ code: "SEARCH_PAGE_LIMIT_EXCEEDED" }));
+  }
+  const sort = PublicProductSortSchema.safeParse(single(raw.sort) ?? (q ? "relevance" : "newest"));
+  if (!sort.success || (!q && sort.data === "relevance")) invalid();
+  const candidates = raw.brands === undefined ? [] : Array.isArray(raw.brands) ? raw.brands : [raw.brands];
+  const brands = [...new Set(candidates.map((brand) => brand.normalize("NFC").trim().toLowerCase().normalize("NFC")).filter(Boolean))];
+  if (brands.length > 20 || brands.some((brand) => Array.from(brand).length > 100)) invalid();
+  const minPrice = price(raw.minPrice);
+  const maxPrice = price(raw.maxPrice);
+  if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) invalid();
+  return { page, size, q, sort: sort.data, brands: brands.length ? brands : undefined, minPrice, maxPrice };
+}
 export function buildPlpQueryString(params: PlpSearchParams): string {
-  const search = new URLSearchParams();
-  const urlPage = params.page + 1;
-
-  search.set("page", String(urlPage));
-  search.set("size", String(params.size));
-  search.set("sort", params.sort);
-
-  if (params.q) {
-    search.set("q", params.q);
-  }
-  if (params.brands && params.brands.length > 0) {
-    for (const brand of params.brands) {
-      search.append("brands", brand);
-    }
-  }
-  if (params.minPrice != null) {
-    search.set("minPrice", String(params.minPrice));
-  }
-  if (params.maxPrice != null) {
-    search.set("maxPrice", String(params.maxPrice));
-  }
-
+  const search = new URLSearchParams({ page: String(params.page), size: String(params.size), sort: params.sort });
+  if (params.q) search.set("q", params.q);
+  for (const brand of params.brands ?? []) search.append("brands", brand);
+  if (params.minPrice !== undefined) search.set("minPrice", String(params.minPrice));
+  if (params.maxPrice !== undefined) search.set("maxPrice", String(params.maxPrice));
   return search.toString();
 }
-
-export function categoryProductsPath(
-  categoryId: number,
-  params: PlpSearchParams
-): string {
-  const query = buildPlpQueryString(params);
-  return `/categories/${categoryId}?${query}`;
+export function catalogProductsPath(categoryId: number | undefined, params: PlpSearchParams): string {
+  return `${categoryId === undefined ? "/search" : `/categories/${categoryId}`}?${buildPlpQueryString(params)}`;
 }
-
-/** Category PLP filters only (excludes keyword search — reserved for global search). */
-export function hasActiveCategoryFilters(params: PlpSearchParams): boolean {
-  return (
-    (params.brands != null && params.brands.length > 0) ||
-    params.minPrice != null ||
-    params.maxPrice != null
-  );
+export function hasActiveCatalogFilters(params: PlpSearchParams): boolean {
+  return !!params.brands?.length || params.minPrice !== undefined || params.maxPrice !== undefined;
 }
-
-/** Merge filter changes and reset to first page. Use `'key' in patch` to clear optional fields. */
-export function mergePlpParams(
-  base: PlpSearchParams,
-  patch: Partial<PlpSearchParams>
-): PlpSearchParams {
-  const q = "q" in patch ? patch.q?.trim() || undefined : base.q;
-  const brands =
-    "brands" in patch
-      ? (patch.brands ?? [])
-          .map((value) => value.trim())
-          .filter((value) => value.length > 0)
-      : (base.brands ?? []);
-  const minPrice = "minPrice" in patch ? patch.minPrice : base.minPrice;
-  const maxPrice = "maxPrice" in patch ? patch.maxPrice : base.maxPrice;
-
-  let sort = patch.sort ?? base.sort;
-  if (q == null && sort === "relevance") {
-    sort = DEFAULT_SORT;
-  }
-
-  return {
-    page: 0,
-    size: patch.size ?? base.size,
-    q,
-    sort,
-    brands: brands.length > 0 ? Array.from(new Set(brands)) : undefined,
-    minPrice,
-    maxPrice,
-  };
+export function mergePlpParams(base: PlpSearchParams, patch: Partial<PlpSearchParams>): PlpSearchParams {
+  const q = "q" in patch ? normalizeSearchTerm(patch.q ?? "") || undefined : base.q;
+  const sort = patch.sort ?? (q !== base.q ? (q ? "relevance" : "newest") : base.sort);
+  return { ...base, ...patch, page: 0, q, sort: !q && sort === "relevance" ? "newest" : sort };
 }
-
-export function clearCategoryPlpFilters(base: PlpSearchParams): PlpSearchParams {
-  return {
-    page: 0,
-    size: base.size,
-    sort: base.sort === "relevance" ? DEFAULT_SORT : base.sort,
-    brands: undefined,
-    minPrice: undefined,
-    maxPrice: undefined,
-    q: undefined,
-  };
+export function clearPlpFilters(base: PlpSearchParams): PlpSearchParams {
+  return { ...base, page: 0, brands: undefined, minPrice: undefined, maxPrice: undefined };
 }
-
 export function parsePriceInput(value: string): number | undefined {
-  const trimmed = value.trim();
-  if (trimmed === "") {
-    return undefined;
-  }
-  const parsed = Number(trimmed);
-  if (Number.isNaN(parsed) || parsed < 0) {
-    return undefined;
-  }
-  return parsed;
+  const raw = value.trim();
+  return /^\d+(?:\.\d{1,2})?$/.test(raw) && Number.isFinite(Number(raw)) ? Number(raw) : undefined;
 }

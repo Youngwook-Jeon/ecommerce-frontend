@@ -6,81 +6,73 @@ export const PublicProductSortSchema = z.enum([
   "price_desc",
   "relevance",
 ]);
-
 export type PublicProductSort = z.infer<typeof PublicProductSortSchema>;
 
 export const PublicProductSummarySchema = z.object({
   id: z.string().uuid(),
+  category: z.object({ id: z.number().int().positive(), name: z.string() }),
   name: z.string(),
-  brand: z.string().nullish(),
-  mainImageUrl: z.string().nullish(),
-  basePrice: z.number(),
+  brand: z.string().nullable(),
+  mainImageUrl: z.string().nullable(),
+  basePrice: z.number().finite().nonnegative(),
 });
-
 export type PublicProductSummaryVm = z.infer<typeof PublicProductSummarySchema>;
 
-export const PublicProductPageSchema = z.object({
-  content: z.array(PublicProductSummarySchema),
-  page: z.number().int().nonnegative(),
-  size: z.number().int().positive(),
-  totalElements: z.number().int().nonnegative(),
-  totalPages: z.number().int().nonnegative(),
-});
-
-export type PublicProductPageVm = z.infer<typeof PublicProductPageSchema>;
-
-/** Single value in a `terms`-type facet (brand, option groups, etc.). */
 export const PublicProductTermsFacetValueSchema = z.object({
   value: z.string(),
-  /** Display label when `value` is an opaque id (e.g. option value uuid). */
-  label: z.string().optional(),
-  count: z.number().int().nonnegative(),
-  selected: z.boolean(),
-});
-
-export type PublicProductTermsFacetValueVm = z.infer<
-  typeof PublicProductTermsFacetValueSchema
->;
-
-const publicProductFacetGroupBaseSchema = z.object({
-  key: z.string(),
-  /** Section title; falls back to derived title from `key` in UI when absent. */
-  label: z.string().optional(),
-  /** Global option group id when `key` is `option:<groupKey>`. */
-  optionGroupId: z.string().uuid().optional(),
-});
-
-export const PublicProductPriceFacetBucketSchema = z.object({
-  id: z.string(),
   label: z.string(),
-  min: z.number().nullable().optional(),
-  max: z.number().nullable().optional(),
   count: z.number().int().nonnegative(),
 });
-
-export type PublicProductPriceFacetBucketVm = z.infer<
-  typeof PublicProductPriceFacetBucketSchema
->;
+// Selection is URL state, rather than part of the API response.
+export type PublicProductTermsFacetValueVm = z.infer<typeof PublicProductTermsFacetValueSchema> & {
+  selected: boolean;
+};
 
 export const PublicProductFacetGroupSchema = z.discriminatedUnion("type", [
-  publicProductFacetGroupBaseSchema.extend({
+  z.object({
+    key: z.string(),
+    label: z.string(),
     type: z.literal("terms"),
-    terms: z.array(PublicProductTermsFacetValueSchema),
-    ranges: z.array(PublicProductPriceFacetBucketSchema),
+    values: z.array(PublicProductTermsFacetValueSchema),
+    hasMore: z.boolean(),
   }),
-  publicProductFacetGroupBaseSchema.extend({
+  z.object({
+    key: z.string(),
+    label: z.string(),
     type: z.literal("range"),
-    terms: z.array(PublicProductTermsFacetValueSchema),
-    ranges: z.array(PublicProductPriceFacetBucketSchema),
+    min: z.number().finite().nonnegative().nullable(),
+    max: z.number().finite().nonnegative().nullable(),
   }),
 ]);
-
 export type PublicProductFacetGroupVm = z.infer<typeof PublicProductFacetGroupSchema>;
 
-export const PublicProductFacetSchema = z.object({
-  categoryId: z.number().int().positive(),
-  totalMatching: z.number().int().nonnegative(),
-  facets: z.array(PublicProductFacetGroupSchema),
-});
+// Ignore future facet types; continue validating every field of known types.
+const FacetsSchema = z.array(z.unknown())
+  .transform((facets) => facets.filter((facet) => {
+    if (typeof facet !== "object" || facet === null || !("type" in facet) || typeof facet.type !== "string") {
+      return true;
+    }
+    return facet.type === "terms" || facet.type === "range";
+  }))
+  .pipe(z.array(PublicProductFacetGroupSchema))
+  .superRefine((facets, context) => {
+    if (new Set(facets.map((facet) => facet.key)).size !== facets.length) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Duplicate facet keys" });
+    }
+    for (const facet of facets) {
+      if (facet.type === "range" && facet.min !== null && facet.max !== null && facet.min > facet.max) {
+        context.addIssue({ code: z.ZodIssueCode.custom, message: "Invalid facet range" });
+      }
+    }
+  });
 
-export type PublicProductFacetVm = z.infer<typeof PublicProductFacetSchema>;
+export const PublicProductSearchSchema = z.object({
+  query: z.object({ q: z.string().nullable(), sort: PublicProductSortSchema }),
+  content: z.array(PublicProductSummarySchema),
+  page: z.number().int().nonnegative(),
+  size: z.number().int().min(1).max(48),
+  totalElements: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+  facets: FacetsSchema,
+});
+export type PublicProductSearchVm = z.infer<typeof PublicProductSearchSchema>;

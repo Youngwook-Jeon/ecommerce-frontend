@@ -12,15 +12,13 @@ import {
 } from "@/components/ui/breadcrumb";
 import { isPublicProductApiError } from "@/common/errors/publicProductApiError";
 import {
-  hasActiveCategoryFilters,
+  hasActiveCatalogFilters,
   parsePlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 import { getCategoryBreadcrumbPath } from "@/modules/catalog/lib/categoryTreeUtils";
+import { ProductSearchFeedback } from "@/modules/catalog/ui/components/ProductSearchFeedback";
 import { ProductCatalogLayout } from "@/modules/catalog/ui/components/ProductCatalogLayout";
-import {
-  getPublicProductFacets,
-  getPublicProducts,
-} from "@/services/publicProductService";
+import { searchPublicProducts } from "@/services/publicProductService";
 import { getPublicCategoryHierarchy } from "@/services/publicCategoryService";
 
 interface CategoryProductsPageProps {
@@ -35,38 +33,24 @@ export default async function CategoryProductsPage({
   const { categoryId: categoryIdRaw } = await params;
   const categoryId = Number(categoryIdRaw);
 
-  if (!Number.isInteger(categoryId) || categoryId <= 0) {
+  if (!Number.isSafeInteger(categoryId) || categoryId <= 0) {
     notFound();
   }
 
-  const resolvedSearchParams = await searchParams;
-  const plpParams = parsePlpSearchParams(resolvedSearchParams);
-
+  let plpParams;
   let productPage;
-  let facetData;
   let categoryHierarchy;
   try {
-    [productPage, facetData, categoryHierarchy] = await Promise.all([
-      getPublicProducts({
-        categoryId,
-        page: plpParams.page,
-        size: plpParams.size,
-        sort: plpParams.sort,
-        brands: plpParams.brands,
-        minPrice: plpParams.minPrice,
-        maxPrice: plpParams.maxPrice,
-      }),
-      getPublicProductFacets({
-        categoryId,
-        brands: plpParams.brands,
-        minPrice: plpParams.minPrice,
-        maxPrice: plpParams.maxPrice,
-      }),
+    plpParams = parsePlpSearchParams(await searchParams);
+    [productPage, categoryHierarchy] = await Promise.all([
+      searchPublicProducts({ categoryId, ...plpParams }),
       getPublicCategoryHierarchy(),
     ]);
+    plpParams = { ...plpParams, q: productPage.query.q ?? undefined, sort: productPage.query.sort };
   } catch (error) {
-    if (isPublicProductApiError(error) && error.status === 404) {
-      notFound();
+    if (isPublicProductApiError(error)) {
+      if (error.status === 404) notFound();
+      return <Container className="py-10"><ProductSearchFeedback status={error.status} code={error.code} /></Container>;
     }
     throw error;
   }
@@ -117,7 +101,7 @@ export default async function CategoryProductsPage({
         <h1 className="text-2xl font-semibold tracking-tight">{categoryName}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {productPage.totalElements.toLocaleString("en-US")} products
-          {hasActiveCategoryFilters(plpParams) ? " · filtered" : ""}
+          {hasActiveCatalogFilters(plpParams) ? " · filtered" : ""}
         </p>
       </header>
 
@@ -125,7 +109,6 @@ export default async function CategoryProductsPage({
         categoryId={categoryId}
         plpParams={plpParams}
         productPage={productPage}
-        facetData={facetData}
       />
     </Container>
   );

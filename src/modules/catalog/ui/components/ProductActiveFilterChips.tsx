@@ -1,19 +1,21 @@
 "use client";
 
+import type { PublicProductFacetGroupVm } from "@/common/schemas/publicProduct";
 import { X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PRICE_PRESETS } from "@/modules/catalog/lib/plpPricePresets";
-import { useCategoryPlpNavigation } from "@/modules/catalog/lib/useCategoryPlpNavigation";
+import { useCatalogNavigation } from "@/modules/catalog/lib/useCatalogNavigation";
 import {
-  hasActiveCategoryFilters,
+  hasActiveCatalogFilters,
   type PlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 
 interface ProductActiveFilterChipsProps {
-  categoryId: number;
+  categoryId?: number;
   plpParams: PlpSearchParams;
+  facets: PublicProductFacetGroupVm[];
 }
 
 function formatPriceLabel(minPrice?: number, maxPrice?: number): string {
@@ -38,15 +40,19 @@ function formatPriceLabel(minPrice?: number, maxPrice?: number): string {
 export function ProductActiveFilterChips({
   categoryId,
   plpParams,
+  facets,
 }: ProductActiveFilterChipsProps) {
-  const { patchParams, clearFilters } = useCategoryPlpNavigation(
+  const { patchParams, clearFilters } = useCatalogNavigation(
     categoryId,
     plpParams
   );
 
-  if (!hasActiveCategoryFilters(plpParams)) {
+  if (!hasActiveCatalogFilters(plpParams)) {
     return null;
   }
+
+  const brandFacet = facets.find((facet) => facet.key === "brand" && facet.type === "terms");
+  const brandLabels = new Map(brandFacet?.type === "terms" ? brandFacet.values.map((value) => [value.value, value.label]) : []);
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -54,7 +60,7 @@ export function ProductActiveFilterChips({
 
       {(plpParams.brands ?? []).map((brand) => (
         <Badge key={brand} variant="secondary" className="gap-1 pr-1">
-          Brand: {brand}
+          Brand: {brandLabels.get(brand) ?? brand}
           <button
             type="button"
             className="rounded-full p-0.5 hover:bg-muted"

@@ -42,6 +42,7 @@ export function TermsFacetSection({
             key={term.value}
             type="button"
             onClick={() => onToggle(term.value, term.selected)}
+            aria-pressed={term.selected}
             className="flex w-full items-center justify-between rounded px-1.5 py-1 text-left text-sm hover:bg-muted"
           >
             <span className={term.selected ? "font-semibold" : "font-normal"}>

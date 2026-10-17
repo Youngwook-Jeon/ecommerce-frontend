@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 
-import type { PublicProductPageVm } from "@/common/schemas/publicProduct";
+import type { PublicProductSearchVm } from "@/common/schemas/publicProduct";
 import { Button } from "@/components/ui/button";
 import {
-  categoryProductsPath,
+  catalogProductsPath,
+  MAX_SEARCH_WINDOW,
   type PlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 
 interface ProductPaginationProps {
-  categoryId: number;
+  categoryId?: number;
   plpParams: PlpSearchParams;
-  page: PublicProductPageVm;
+  page: PublicProductSearchVm;
 }
 
 export function ProductPagination({
@@ -35,7 +36,8 @@ export function ProductPagination({
   };
 
   const hasPrev = currentUrlPage > 1;
-  const hasNext = currentUrlPage < page.totalPages;
+  const accessiblePages = Math.min(page.totalPages, Math.floor(MAX_SEARCH_WINDOW / page.size));
+  const hasNext = currentUrlPage < accessiblePages;
 
   return (
     <nav
@@ -44,7 +46,7 @@ export function ProductPagination({
     >
       {hasPrev ? (
         <Button variant="outline" asChild>
-          <Link href={categoryProductsPath(categoryId, prevParams)}>Previous</Link>
+          <Link href={catalogProductsPath(categoryId, prevParams)}>Previous</Link>
         </Button>
       ) : (
         <Button variant="outline" disabled>
@@ -52,11 +54,11 @@ export function ProductPagination({
         </Button>
       )}
       <span className="text-sm text-muted-foreground">
-        {currentUrlPage} / {page.totalPages}
+        {currentUrlPage} / {accessiblePages}
       </span>
       {hasNext ? (
         <Button variant="outline" asChild>
-          <Link href={categoryProductsPath(categoryId, nextParams)}>Next</Link>
+          <Link href={catalogProductsPath(categoryId, nextParams)}>Next</Link>
         </Button>
       ) : (
         <Button variant="outline" disabled>

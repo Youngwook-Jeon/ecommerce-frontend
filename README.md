@@ -8,7 +8,7 @@ Next.js App Router 기반의 이커머스 프론트엔드입니다. 공개 상�
 
 | 영역 | 주요 기능 / 경로 |
 |---|---|
-| 스토어프론트 | 홈, 카테고리 탐색 `/categories`, 카테고리별 상품 목록 `/categories/[categoryId]` |
+| 스토어프론트 | 홈, 카테고리 탐색 `/categories`, 카테고리별 상품 목록 `/categories/[categoryId]`, 전역 검색 `/search` |
 | 상품 목록·상세 | 키워드 검색, 브랜드·가격 필터, 정렬·페이지 이동, `/products/[productId]`의 옵션·Variant 선택 |
 | 장바구니 | `/cart`, 비회원·회원 카트, 수량 변경·삭제, 카탈로그 동기화, 로그인 후 비회원 카트 병합 |
 | 체크아웃 | `/checkout`, 배송지 입력·주문 생성, 결제 준비·진행·성공·실패 화면 |
@@ -45,6 +45,19 @@ flowchart LR
 상품 상세는 프로덕션에서 900초, 카테고리 계층은 3,600초의 재검증 주기를 사용합니다. 개발 모드에서는 해당 캐시 경로를 `no-store`로 전환합니다. 상품 상세의 metadata·page 조회는 React `cache`로 요청 내 중복을 줄입니다. 설정은 [storefrontCache](src/common/constants/storefrontCache.ts)에 모았습니다.
 
 백엔드 Redis 캐시와 Next.js 캐시는 별개입니다. 백엔드의 캐시 무효화가 Next.js 캐시를 즉시 갱신한다는 보장은 없으며, 주문 시 가격·재고는 백엔드가 다시 검증합니다.
+
+### OpenSearch 상품 검색
+
+네비게이션 검색창에서 Enter 또는 검색 버튼으로 `/search?q=...`에 이동합니다. 빈 입력은 제출하지 않으며 `/search` 직접 접근은 전체 상품 탐색입니다. 전역 검색과 카테고리 화면 모두 Gateway의 `GET /api/v1/product_service/public/products/search`를 [searchPublicProducts](src/services/publicProductService.ts)로 호출합니다. 카테고리 화면은 `categoryId`를 추가합니다. 기존 목록·facets API는 프론트엔드에서 호출하지 않습니다.
+
+- 한 응답의 상품·총 개수·facets를 함께 사용합니다. 검색 요청은 쿠키 없이 `no-store`로 조회하며 응답을 Zod로 검증합니다.
+- URL의 `q`, 반복 `brands`, `minPrice`, `maxPrice`, `sort`, `page`, `size`가 화면 상태입니다. URL/API page는 0부터 시작하며 표시 번호는 1부터 시작합니다. 검색어가 있으면 기본 정렬은 relevance, 없으면 newest입니다.
+- 필터·정렬 변경은 첫 페이지로 돌아가며 검색어를 유지합니다. 필터 전체 해제도 검색어를 유지합니다. 페이지 크기는 1~48이며 10,000건 검색 창을 넘는 다음 페이지 링크는 만들지 않습니다.
+- 브랜드의 value는 필터 키, label은 표시 이름입니다. 선택 상태는 URL에서 계산하고 facets에 없는 선택 브랜드도 해제할 수 있습니다. hasMore일 때 상위 50개 표시를 안내합니다.
+- 가격 facet의 min/max와 기존 가격 프리셋·직접 입력을 사용합니다. 구간별 개수는 API에서 제공하지 않아 표시하지 않습니다. feature 필터는 아직 전송하지 않습니다.
+- 결과 없음, 잘못된 요청, 카테고리 없음, 검색 장애를 구분합니다. 검색 장애에는 재시도를 제공하며 DB 목록 API로 대체하지 않습니다.
+
+로컬에서는 Product 앱과 OpenSearch가 준비되어 있어야 합니다. 최초 인덱스 생성·적재 설정은 [백엔드 인덱스 관리](../ecommerce-msa/product-service/docs/ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md)를 참고합니다. 검색어가 상품 설명에만 포함된 경우, 브랜드/가격 필터 후 정렬·페이지 변경, 필터 해제 후 검색어 유지, OpenSearch 중단 시 재시도를 수동 확인합니다.
 
 ### 비동기 결제를 화면 상태로 표현
 

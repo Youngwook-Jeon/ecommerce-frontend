@@ -1,11 +1,11 @@
 "use client";
 
-import type { PublicProductFacetVm } from "@/common/schemas/publicProduct";
+import type { PublicProductFacetGroupVm } from "@/common/schemas/publicProduct";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { useCategoryPlpNavigation } from "@/modules/catalog/lib/useCategoryPlpNavigation";
+import { useCatalogNavigation } from "@/modules/catalog/lib/useCatalogNavigation";
 import {
-  hasActiveCategoryFilters,
+  hasActiveCatalogFilters,
   type PlpSearchParams,
 } from "@/modules/catalog/lib/plpSearchParams";
 
@@ -13,25 +13,25 @@ import { BrandFacetSection } from "./facets/BrandFacetSection";
 import { PriceFacetSection } from "./facets/PriceFacetSection";
 
 interface ProductFilterSidebarProps {
-  categoryId: number;
+  categoryId?: number;
   plpParams: PlpSearchParams;
-  facetData: PublicProductFacetVm;
+  facets: PublicProductFacetGroupVm[];
 }
 
 export function ProductFilterSidebar({
   categoryId,
   plpParams,
-  facetData,
+  facets,
 }: ProductFilterSidebarProps) {
-  const { patchParams, clearFilters } = useCategoryPlpNavigation(
+  const { patchParams, clearFilters } = useCatalogNavigation(
     categoryId,
     plpParams
   );
 
-  const brandFacet = facetData.facets.find(
+  const brandFacet = facets.find(
     (facet) => facet.key === "brand" && facet.type === "terms"
   );
-  const priceFacet = facetData.facets.find(
+  const priceFacet = facets.find(
     (facet) => facet.key === "price" && facet.type === "range"
   );
 
@@ -51,7 +51,7 @@ export function ProductFilterSidebar({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Filters
         </h2>
-        {hasActiveCategoryFilters(plpParams) ? (
+        {hasActiveCatalogFilters(plpParams) ? (
           <Button
             type="button"
             variant="link"

@@ -51,6 +51,11 @@ export function ProductCard({ product }: ProductCardProps) {
         </CardContent>
         <CardFooter className="sr-only">View {product.name}</CardFooter>
       </Link>
+      <div className="px-4 pb-4 text-xs text-muted-foreground">
+        <Link href={`/categories/${product.category.id}`} className="hover:underline">
+          {product.category.name}
+        </Link>
+      </div>
     </Card>
   );
 }
