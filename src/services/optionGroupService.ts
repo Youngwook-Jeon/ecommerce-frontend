@@ -59,11 +59,12 @@ export async function createOptionGroup(payload: CreateOptionGroupForm) {
 
 export async function updateOptionGroup(
   groupId: string,
-  payload: UpdateOptionGroupForm
+  payload: UpdateOptionGroupForm,
+  expectedVersion: number
 ) {
   try {
     const response = await fetchWrapper.put(
-      `api/v1/product_service/option-groups/${groupId}`,
+      `api/v1/product_service/option-groups/${groupId}?expectedVersion=${expectedVersion}`,
       payload
     );
     const data = await response.json();

@@ -14,6 +14,7 @@ export type OptionValueVm = z.infer<typeof OptionValueSchema>;
 
 export const OptionGroupSchema = z.object({
   id: z.string().uuid(),
+  version: z.number().int().nonnegative(),
   name: z.string(),
   displayName: z.string(),
   status: OptionStatusSchema,

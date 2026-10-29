@@ -76,7 +76,7 @@ export function UpdateOptionGroupForm({
   async function onSubmit(values: UpdateOptionGroupFormValues) {
     if (!optionGroup) return;
     setIsSubmitting(true);
-    const result = await updateOptionGroup(optionGroup.id, values);
+    const result = await updateOptionGroup(optionGroup.id, values, optionGroup.version);
 
     if (result.success) {
       toast({
