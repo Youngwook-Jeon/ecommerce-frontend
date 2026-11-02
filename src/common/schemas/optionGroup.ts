@@ -5,6 +5,7 @@ export type OptionStatus = z.infer<typeof OptionStatusSchema>;
 
 export const OptionValueSchema = z.object({
   id: z.string().uuid(),
+  attributeValueId: z.string().uuid().nullable(),
   value: z.string(),
   displayName: z.string(),
   sortOrder: z.number(),
@@ -14,6 +15,7 @@ export type OptionValueVm = z.infer<typeof OptionValueSchema>;
 
 export const OptionGroupSchema = z.object({
   id: z.string().uuid(),
+  attributeId: z.string().uuid().nullable(),
   version: z.number().int().nonnegative(),
   name: z.string(),
   displayName: z.string(),
@@ -26,7 +28,7 @@ export const OptionGroupListSchema = z.object({
   optionGroups: z.array(OptionGroupSchema),
 });
 
-export const CreateOptionGroupSchema = z.object({
+const OptionGroupInputSchema = z.object({
   name: z
     .string()
     .trim()
@@ -38,9 +40,12 @@ export const CreateOptionGroupSchema = z.object({
     .min(2, "Display name must be at least 2 characters.")
     .max(100, "Display name must be 100 characters or less."),
 });
+export const CreateOptionGroupSchema = OptionGroupInputSchema.extend({
+  attributeId: z.string().uuid("Select an attribute definition."),
+});
 export type CreateOptionGroupForm = z.infer<typeof CreateOptionGroupSchema>;
 
-export const UpdateOptionGroupSchema = CreateOptionGroupSchema.extend({
+export const UpdateOptionGroupSchema = OptionGroupInputSchema.extend({
   status: OptionStatusSchema,
 });
 export type UpdateOptionGroupForm = z.infer<typeof UpdateOptionGroupSchema>;
@@ -63,7 +68,21 @@ const OptionValueInputSchema = z.object({
 });
 
 export const AddOptionValuesSchema = z.object({
-  optionValues: z.array(OptionValueInputSchema).min(1, "Add at least one option value."),
+  optionValues: z.array(OptionValueInputSchema.extend({
+    attributeValueId: z.string().uuid("Select an attribute value."),
+  })).min(1, "Add at least one option value.").superRefine((values, context) => {
+    const selected = new Set<string>();
+    values.forEach((value, index) => {
+      if (selected.has(value.attributeValueId)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, "attributeValueId"],
+          message: "Select each attribute value only once.",
+        });
+      }
+      selected.add(value.attributeValueId);
+    });
+  }),
 });
 export type AddOptionValuesForm = z.infer<typeof AddOptionValuesSchema>;
 

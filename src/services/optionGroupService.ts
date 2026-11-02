@@ -8,6 +8,8 @@ import {
   UpdateOptionGroupForm,
   UpdateOptionValueForm,
   CreateOptionGroupForm,
+  CreateOptionGroupSchema,
+  AddOptionValuesSchema,
 } from "@/common/schemas/optionGroup";
 import { getErrorMessage } from "@/lib/utils";
 
@@ -45,7 +47,7 @@ export async function createOptionGroup(payload: CreateOptionGroupForm) {
   try {
     const response = await fetchWrapper.post(
       "api/v1/product_service/option-groups",
-      payload
+      CreateOptionGroupSchema.parse(payload)
     );
     const data = await response.json();
     if (!response.ok) {
@@ -96,7 +98,7 @@ export async function addOptionValues(groupId: string, payload: AddOptionValuesF
   try {
     const response = await fetchWrapper.post(
       `api/v1/product_service/option-groups/${groupId}/option-values`,
-      payload
+      AddOptionValuesSchema.parse(payload)
     );
     const data = await response.json();
     if (!response.ok) {

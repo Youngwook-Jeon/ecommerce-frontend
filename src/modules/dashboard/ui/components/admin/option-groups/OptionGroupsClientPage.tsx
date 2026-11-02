@@ -118,12 +118,17 @@ export function OptionGroupsClientPage({ initialData }: OptionGroupsClientPagePr
                 : "Select an option group to manage its values."}
             </CardDescription>
           </div>
-          <Button onClick={() => setIsAddValuesOpen(true)} disabled={!activeGroup}>
+          <Button onClick={() => setIsAddValuesOpen(true)} disabled={!activeGroup || !activeGroup.attributeId || activeGroup.status === "DELETED"}>
             <PlusSquare className="mr-2 h-4 w-4" />
             Add Values
           </Button>
         </CardHeader>
         <CardContent>
+          {activeGroup && !activeGroup.attributeId && (
+            <p className="mb-3 text-sm text-muted-foreground">
+              This legacy group is not linked to an attribute and cannot accept new values.
+            </p>
+          )}
           {activeGroup ? (
             <div className="rounded-md border">
               <Table>
@@ -190,10 +195,13 @@ export function OptionGroupsClientPage({ initialData }: OptionGroupsClientPagePr
         </CardContent>
       </Card>
 
-      <CreateOptionGroupForm
-        isOpen={isCreateGroupOpen}
-        onClose={() => setIsCreateGroupOpen(false)}
-      />
+      {isCreateGroupOpen && (
+        <CreateOptionGroupForm
+          assignedAttributeIds={initialData.flatMap((group) => group.attributeId ? [group.attributeId] : [])}
+          isOpen={isCreateGroupOpen}
+          onClose={() => setIsCreateGroupOpen(false)}
+        />
+      )}
       <UpdateOptionGroupForm
         isOpen={isUpdateGroupOpen}
         onClose={closeDialogs}
@@ -204,11 +212,14 @@ export function OptionGroupsClientPage({ initialData }: OptionGroupsClientPagePr
         onClose={closeDialogs}
         optionGroup={selectedGroup}
       />
-      <AddOptionValuesForm
-        isOpen={isAddValuesOpen}
-        onClose={closeDialogs}
-        optionGroup={activeGroup}
-      />
+      {isAddValuesOpen && (
+        <AddOptionValuesForm
+          key={activeGroup?.id}
+          isOpen={isAddValuesOpen}
+          onClose={closeDialogs}
+          optionGroup={activeGroup}
+        />
+      )}
       <UpdateOptionValueForm
         isOpen={isUpdateValueOpen}
         onClose={closeDialogs}
