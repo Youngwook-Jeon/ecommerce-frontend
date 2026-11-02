@@ -36,12 +36,16 @@ import {
 } from "@/components/ui/form";
 
 interface CreateOptionGroupFormProps {
+  initialAttributeId?: string;
+  onCreated?: (groupId: string) => void;
   assignedAttributeIds: string[];
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function CreateOptionGroupForm({
+  initialAttributeId = "",
+  onCreated,
   assignedAttributeIds,
   isOpen,
   onClose,
@@ -58,7 +62,7 @@ export function CreateOptionGroupForm({
   const form = useForm<CreateOptionGroupFormValues>({
     resolver: zodResolver(CreateOptionGroupSchema),
     defaultValues: {
-      attributeId: "",
+      attributeId: initialAttributeId,
       name: "",
       displayName: "",
     },
@@ -105,6 +109,7 @@ export function CreateOptionGroupForm({
     }));
 
     if (result.success) {
+      onCreated?.(result.data.id);
       toast({
         title: "Success!",
         description: `Option group "${values.name}" has been created.`,

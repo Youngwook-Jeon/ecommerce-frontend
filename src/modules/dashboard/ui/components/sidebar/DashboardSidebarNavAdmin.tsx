@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FolderPlusIcon, LayoutDashboardIcon, ListTreeIcon, PackageIcon } from "lucide-react";
+import { FolderPlusIcon, LayoutDashboardIcon, ListTreeIcon, PackageIcon, TagsIcon } from "lucide-react";
 
 import {
   Command,
@@ -24,6 +24,11 @@ const items = [
     title: "Categories",
     url: "/dashboard/admin/categories",
     icon: FolderPlusIcon,
+  },
+  {
+    title: "Attributes",
+    url: "/dashboard/admin/attributes",
+    icon: TagsIcon,
   },
   {
     title: "Products",
@@ -51,7 +56,8 @@ export const DashboardSidebarNavAdmin = () => {
               <CommandItem
                 key={index}
                 className={cn("w-full h-12 cursor-pointer mt-1", {
-                  "bg-accent text-accent-foreground": item.url === pathname,
+                  "bg-accent text-accent-foreground": item.url === pathname ||
+                    (item.url !== "/dashboard/admin" && pathname.startsWith(`${item.url}/`)),
                 })}
               >
                 <Link

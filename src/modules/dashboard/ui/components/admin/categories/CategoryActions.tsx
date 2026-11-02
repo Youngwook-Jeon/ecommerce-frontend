@@ -1,6 +1,7 @@
 "use client";
 
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Tags, Trash2 } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -23,6 +24,12 @@ export function CategoryActions({ category, onEdit, onDelete }: CategoryActionsP
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuItem asChild disabled={category.status === "DELETED"}>
+            <Link href={`/dashboard/admin/categories/${category.id}/attributes`}>
+              <Tags className="mr-2 h-4 w-4" aria-hidden="true" />
+              <span>Manage Attributes</span>
+            </Link>
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => onEdit(category)}>
             <Pencil className="mr-2 h-4 w-4" />
             <span>Edit</span>

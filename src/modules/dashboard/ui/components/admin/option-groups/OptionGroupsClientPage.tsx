@@ -27,16 +27,18 @@ import { DeleteOptionValueDialog } from "./DeleteOptionValueDialog";
 
 interface OptionGroupsClientPageProps {
   initialData: OptionGroupVm[];
+  initialAttributeId?: string;
 }
 
-export function OptionGroupsClientPage({ initialData }: OptionGroupsClientPageProps) {
+export function OptionGroupsClientPage({ initialData, initialAttributeId }: OptionGroupsClientPageProps) {
+  const linkedGroup = initialData.find((group) => group.attributeId === initialAttributeId);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
-    initialData[0]?.id ?? null
+    linkedGroup?.id ?? initialData[0]?.id ?? null
   );
   const [selectedGroup, setSelectedGroup] = useState<OptionGroupVm | null>(null);
   const [selectedValue, setSelectedValue] = useState<OptionValueVm | null>(null);
 
-  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(!!initialAttributeId && !linkedGroup);
   const [isUpdateGroupOpen, setIsUpdateGroupOpen] = useState(false);
   const [isDeleteGroupOpen, setIsDeleteGroupOpen] = useState(false);
   const [isAddValuesOpen, setIsAddValuesOpen] = useState(false);
@@ -197,6 +199,8 @@ export function OptionGroupsClientPage({ initialData }: OptionGroupsClientPagePr
 
       {isCreateGroupOpen && (
         <CreateOptionGroupForm
+          initialAttributeId={initialAttributeId}
+          onCreated={setSelectedGroupId}
           assignedAttributeIds={initialData.flatMap((group) => group.attributeId ? [group.attributeId] : [])}
           isOpen={isCreateGroupOpen}
           onClose={() => setIsCreateGroupOpen(false)}
