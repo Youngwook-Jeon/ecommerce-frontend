@@ -31,6 +31,7 @@ import { UpdateProductRequest, updateProduct } from "@/services/productService";
 import { AdminProductDetailVm, fetchAdminProductDetail } from "@/services/adminProductClient";
 import type { ReadProductImageVm } from "@/types/productImage";
 import { ProductImageUploader } from "./ProductImageUploader";
+import { ProductSpecificationsEditor } from "./ProductSpecificationsEditor";
 
 const UpdateProductSchema = z.object({
   name: z
@@ -67,6 +68,7 @@ export function UpdateProductForm({
   onClose,
 }: UpdateProductFormProps) {
   const [imagesBusy, setImagesBusy] = useState(false);
+  const [specificationsBusy, setSpecificationsBusy] = useState(false);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [detail, setDetail] = useState<AdminProductDetailVm | null>(null);
 
@@ -166,11 +168,11 @@ export function UpdateProductForm({
     }
   }
 
-  const isDisabled = isLoadingDetail || isSubmitting || imagesBusy || !detail;
+  const isDisabled = isLoadingDetail || isSubmitting || imagesBusy || specificationsBusy || !detail;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !imagesBusy && !isSubmitting) onClose(); }}>
-      <DialogContent className="sm:max-w-[600px]">
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !imagesBusy && !specificationsBusy && !isSubmitting) onClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[700px]">
         <DialogHeader>
           <DialogTitle>Edit Product</DialogTitle>
           <DialogDescription>Update the product details.</DialogDescription>
@@ -330,6 +332,22 @@ export function UpdateProductForm({
                 disabled={isDisabled || form.formState.isDirty}
                 onBusyChange={setImagesBusy}
                 onImagesUpdated={async () => {
+                  await reloadProductDetail(productId);
+                  router.refresh();
+                }}
+              />
+            ) : null}
+
+            {isOpen && productId && detail && !isLoadingDetail ? (
+              <ProductSpecificationsEditor
+                key={productId}
+                productId={productId}
+                categoryId={detail.categoryId}
+                expectedVersion={detail.version}
+                status={detail.status}
+                disabled={isLoadingDetail || isSubmitting || imagesBusy || form.formState.isDirty}
+                onBusyChange={setSpecificationsBusy}
+                onReload={async () => {
                   await reloadProductDetail(productId);
                   router.refresh();
                 }}
